@@ -44,6 +44,14 @@
 							<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
 							<border>5</border>
 						</object>
+						<object class="sizeritem">
+							<object class="wxButton" name="ID_BUTTON2" variable="m_ButtonGenerateLatexCode" member="yes">
+								<label>Generate latex code</label>
+								<handler function="OnButtonGenerateLatexCodeClick" entry="EVT_BUTTON" />
+							</object>
+							<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+							<border>5</border>
+						</object>
 					</object>
 				</object>
 				<name>control</name>
@@ -52,6 +60,22 @@
 				<maximizebutton>0</maximizebutton>
 				<pinbutton>0</pinbutton>
 				<dockdirection>Right</dockdirection>
+				<dockfixed>0</dockfixed>
+				<dockabledirection></dockabledirection>
+				<destroyonclose>0</destroyonclose>
+				<firstadd>0</firstadd>
+			</object>
+			<object class="AuiManagerItem">
+				<object class="wxTextCtrl" name="ID_TEXTCTRL1" variable="m_TextCtrlLog" member="yes">
+					<minsize>0,150</minsize>
+					<style>wxTE_MULTILINE|wxTE_RICH|wxTE_RICH2</style>
+				</object>
+				<name>log</name>
+				<caption>log</caption>
+				<minimizebutton>0</minimizebutton>
+				<maximizebutton>0</maximizebutton>
+				<pinbutton>0</pinbutton>
+				<dockdirection>Bottom</dockdirection>
 				<dockfixed>0</dockfixed>
 				<dockabledirection></dockabledirection>
 				<destroyonclose>0</destroyonclose>

@@ -14,6 +14,10 @@
 #include <wx/txtstrm.h>  // For wxTextOutputStream
 #include <wx/log.h>
 #include <wx/dcclient.h> // wxClientDC
+#include <wx/filename.h> // wxFileName
+
+
+#include "ImageDropTarget.h" // drag and drop for opening the image file
 
 
 #include "ImageArrow.h"  // custom arrow shape for wxMathPlot
@@ -49,7 +53,9 @@ wxString wxbuildinfo(wxbuildinfoformat format)
 //(*IdInit(ImageLabelGuiFrame)
 const wxWindowID ImageLabelGuiFrame::ID_BUTTON1 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_CHECKBOX1 = wxNewId();
+const wxWindowID ImageLabelGuiFrame::ID_BUTTON2 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_PANEL1 = wxNewId();
+const wxWindowID ImageLabelGuiFrame::ID_TEXTCTRL1 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::idMenuQuit = wxNewId();
 const wxWindowID ImageLabelGuiFrame::idMenuAbout = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_STATUSBAR1 = wxNewId();
@@ -74,20 +80,25 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
 
     Create(parent, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE, _T("wxID_ANY"));
     AuiManager1 = new wxAuiManager(this, wxAUI_MGR_DEFAULT);
-    m_MathPlot = new mpWindow(this, wxID_ANY, wxPoint(181, 113), wxDefaultSize, wxTAB_TRAVERSAL);
+    m_MathPlot = new mpWindow(this, wxID_ANY, wxPoint(181,113), wxDefaultSize, wxTAB_TRAVERSAL);
     m_MathPlot->UpdateAll();
     m_MathPlot->Fit();
     AuiManager1->AddPane(m_MathPlot, wxAuiPaneInfo().Name(_T("image")).CenterPane().Caption(_("image")));
     Panel1 = new wxPanel(this, ID_PANEL1, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL, _T("ID_PANEL1"));
-    Panel1->SetMinSize(wxSize(150, 0));
+    Panel1->SetMinSize(wxSize(150,0));
     BoxSizer1 = new wxBoxSizer(wxVERTICAL);
     m_ButtonLoadImage = new wxButton(Panel1, ID_BUTTON1, _("Load image"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON1"));
-    BoxSizer1->Add(m_ButtonLoadImage, 0, wxALL | wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL, 5);
+    BoxSizer1->Add(m_ButtonLoadImage, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     m_CheckBoxDrawArrow = new wxCheckBox(Panel1, ID_CHECKBOX1, _("Draw arrow"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
     m_CheckBoxDrawArrow->SetValue(false);
-    BoxSizer1->Add(m_CheckBoxDrawArrow, 0, wxALL | wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL, 5);
+    BoxSizer1->Add(m_CheckBoxDrawArrow, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    m_ButtonGenerateLatexCode = new wxButton(Panel1, ID_BUTTON2, _("Generate latex code"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON2"));
+    BoxSizer1->Add(m_ButtonGenerateLatexCode, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     Panel1->SetSizer(BoxSizer1);
-    AuiManager1->AddPane(Panel1, wxAuiPaneInfo().Name(_T("control")).DefaultPane().Caption(_("control")).CaptionVisible().Right().MinSize(wxSize(150, 0)));
+    AuiManager1->AddPane(Panel1, wxAuiPaneInfo().Name(_T("control")).DefaultPane().Caption(_("control")).CaptionVisible().Right().MinSize(wxSize(150,0)));
+    m_TextCtrlLog = new wxTextCtrl(this, ID_TEXTCTRL1, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_RICH|wxTE_RICH2, wxDefaultValidator, _T("ID_TEXTCTRL1"));
+    m_TextCtrlLog->SetMinSize(wxSize(0,150));
+    AuiManager1->AddPane(m_TextCtrlLog, wxAuiPaneInfo().Name(_T("log")).DefaultPane().Caption(_("log")).CaptionVisible().Bottom().MinSize(wxSize(0,150)));
     AuiManager1->Update();
     MenuBar1 = new wxMenuBar();
     Menu1 = new wxMenu();
@@ -102,17 +113,21 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
     StatusBar1 = new wxStatusBar(this, ID_STATUSBAR1, 0, _T("ID_STATUSBAR1"));
     int __wxStatusBarWidths_1[1] = { -1 };
     int __wxStatusBarStyles_1[1] = { wxSB_NORMAL };
-    StatusBar1->SetFieldsCount(1, __wxStatusBarWidths_1);
-    StatusBar1->SetStatusStyles(1, __wxStatusBarStyles_1);
+    StatusBar1->SetFieldsCount(1,__wxStatusBarWidths_1);
+    StatusBar1->SetStatusStyles(1,__wxStatusBarStyles_1);
     SetStatusBar(StatusBar1);
 
     Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ImageLabelGuiFrame::OnButtonLoadImageClick, this, ID_BUTTON1);
     Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &ImageLabelGuiFrame::OnCheckBoxDrawArrowClick, this, ID_CHECKBOX1);
+    Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick, this, ID_BUTTON2);
     Bind(wxEVT_COMMAND_MENU_SELECTED, &ImageLabelGuiFrame::OnQuit, this, idMenuQuit);
     Bind(wxEVT_COMMAND_MENU_SELECTED, &ImageLabelGuiFrame::OnAbout, this, idMenuAbout);
     //*)
 
     InitializePlot();
+
+    // Set the drop target
+    SetDropTarget(new ImageDropTarget(this));
 }
 
 ImageLabelGuiFrame::~ImageLabelGuiFrame()
@@ -146,33 +161,9 @@ void ImageLabelGuiFrame::OnButtonLoadImageClick(wxCommandEvent& event)
     if(openFileDialog.ShowModal() == wxID_CANCEL)
         return; // User cancelled
 
-    // Load the selected image
     wxString filePath = openFileDialog.GetPath();
-    wxString fileName = openFileDialog.GetFilename();
-    wxImage image;
-    if(!image.LoadFile(filePath))
-    {
-        wxLogError("Failed to load image: %s", filePath);
-        return;
-    }
 
-    // Store the image resolution and filename in the member variables
-    m_LoadedImageWidth = image.GetWidth();
-    m_LoadedImageHeight = image.GetHeight();
-    m_LoadedImageFilename = fileName;
-
-    CleanPlot(); // Remove any existing layers
-
-    // Create a bitmap layer
-    mpBitmapLayer* bitmapLayer = new mpBitmapLayer();
-    bitmapLayer->SetBitmap(image, 0.0, 0.0, 1.0, 1.0);
-
-    // Add bitmap layer to the plot
-    m_MathPlot->AddLayer(bitmapLayer);
-
-    // Update the plot
-    m_MathPlot->Fit();
-    m_MathPlot->Refresh();
+    LoadImage(filePath);
 }
 
 void ImageLabelGuiFrame::OnCheckBoxDrawArrowClick(wxCommandEvent& event)
@@ -511,7 +502,7 @@ void ImageLabelGuiFrame::InitializePlot(void)
     m_MathPlot->AddLayer(bottomAxis);
     m_MathPlot->AddLayer(leftAxis);
     mpTitle* plotTitle;
-    m_MathPlot->AddLayer(plotTitle = new mpTitle(_("Demo MathPlot")));
+    m_MathPlot->AddLayer(plotTitle = new mpTitle(_("Image label tool for tikz-imagelabels package")));
 
     wxFont titleFont(12, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD);
     plotTitle->SetFont(titleFont);
@@ -538,4 +529,112 @@ void ImageLabelGuiFrame::CleanPlot(void)
     bottomAxis->SetAuto(true);
     m_MathPlot->DelLayer(m_MathPlot->GetLayerByName(_T("BarChart")), true);
     m_MathPlot->DelLayer(m_MathPlot->GetLayerByClassName("mpBitmapLayer"), true);
+
+    // Remove specific layers of type mpArrow
+    // note the loop variable i and the CountAllLayers() will be changed if one layer get removed
+    for (unsigned int i = 0; i < m_MathPlot->CountAllLayers(); /* no increment here */)
+    {
+        auto layer = m_MathPlot->GetLayer(i);
+        mpArrow* arrowLayer = dynamic_cast<mpArrow*>(layer);
+        if (arrowLayer && arrowLayer->GetName() == "Arrow")
+        {
+            m_MathPlot->DelLayer(layer, true);
+        }
+        else
+        {
+            i++; // Only increment if the current layer was not removed
+        }
+    }
+}
+
+void ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick(wxCommandEvent& event)
+{
+    wxStringOutputStream stringStream;
+    wxTextOutputStream textStream(stringStream);
+
+    // Write LaTeX code
+    textStream << wxString::Format("\\begin{annotationimage}{width=0.7\\linewidth}{%s}\n", m_LoadedImageFilename);
+
+    // Iterate over all layers to find the closest arrow
+    for (unsigned int i = 0; i < m_MathPlot->CountAllLayers(); i++)
+    {
+        auto layer = m_MathPlot->GetLayer(i);
+        mpArrow* arrowLayer = dynamic_cast<mpArrow*>(layer);
+        if (arrowLayer && arrowLayer->GetName() == "Arrow")
+        {
+            // Start the LaTeX arrow generation
+            wxRealPoint start = arrowLayer->GetStartPoint();
+            wxRealPoint end = arrowLayer->GetEndPoint();
+            wxString label = arrowLayer->GetLabel(); // Now wxString supports Unicode
+
+            // Escape LaTeX special characters in the label
+            label.Replace("_", "\\_");
+            label.Replace("&", "\\&");
+            label.Replace("%", "\\%");
+            label.Replace("#", "\\#");
+            label.Replace("$", "\\$");
+            label.Replace("^", "\\^{}");
+            label.Replace("{", "\\{");
+            label.Replace("}", "\\}");
+
+            // Calculate the annotation placement based on start position
+            if (start.x < 0.0 && start.y > 0.0 && start.y < 1.0)
+            {
+                textStream << wxString::Format("    \\draw[annotation left = {%s at %.2f}] to (%.2f,%.2f);\n", label, start.y, end.x, end.y);
+            }
+            else if (start.x > 1.0 && start.y > 0.0 && start.y < 1.0)
+            {
+                textStream << wxString::Format("    \\draw[annotation right = {%s at %.2f}] to (%.2f,%.2f);\n", label, start.y, end.x, end.y);
+            }
+            else if (start.y < 0.0 && start.x > 0.0 && start.x < 1.0)
+            {
+                textStream << wxString::Format("    \\draw[annotation below = {%s at %.2f}] to (%.2f,%.2f);\n", label, start.x, end.x, end.y);
+            }
+            else
+            {
+                textStream << wxString::Format("    \\draw[annotation above = {%s at %.2f}] to (%.2f,%.2f);\n", label, start.x, end.x, end.y);
+            }
+        }
+    }
+
+    textStream << "\\end{annotationimage}\n";
+
+    // Display the LaTeX code in the text control
+    m_TextCtrlLog->SetValue(stringStream.GetString());
+}
+
+    // Add your image loading function here
+void ImageLabelGuiFrame::LoadImage(const wxString& filePath)
+{
+    // Code to load and display the image
+    // wxMessageBox("Loading image: " + filePath, "Load Image", wxOK | wxICON_INFORMATION, this);
+
+    // Use wxFileName to extract the file name
+    wxFileName fileName(filePath);
+    wxString name = fileName.GetFullName();
+
+    wxImage image;
+    if(!image.LoadFile(filePath))
+    {
+        wxLogError("Failed to load image: %s", filePath);
+        return;
+    }
+
+    // Store the image resolution and filename in the member variables
+    m_LoadedImageWidth = image.GetWidth();
+    m_LoadedImageHeight = image.GetHeight();
+    m_LoadedImageFilename = name;
+
+    CleanPlot(); // Remove any existing layers
+
+    // Create a bitmap layer
+    mpBitmapLayer* bitmapLayer = new mpBitmapLayer();
+    bitmapLayer->SetBitmap(image, 0.0, 0.0, 1.0, 1.0);
+
+    // Add bitmap layer to the plot
+    m_MathPlot->AddLayer(bitmapLayer);
+
+    // Update the plot
+    m_MathPlot->Fit();
+    m_MathPlot->Refresh();
 }

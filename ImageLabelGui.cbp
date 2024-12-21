@@ -42,6 +42,7 @@
 			<Add option="`$(#WX_CONFIG) --libs all`" />
 		</Linker>
 		<Unit filename="ImageArrow.h" />
+		<Unit filename="ImageDropTarget.h" />
 		<Unit filename="ImageLabelGuiApp.cpp" />
 		<Unit filename="ImageLabelGuiApp.h" />
 		<Unit filename="ImageLabelGuiMain.cpp" />
