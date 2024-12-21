@@ -31,15 +31,17 @@
 			</Target>
 		</Build>
 		<Compiler>
-			<Add option="`$(#WX_CONFIG) --cflags`" />
 			<Add option="-Wall" />
+			<Add option="`$(#WX_CONFIG) --cflags`" />
+			<Add directory="wxMathPlot" />
 		</Compiler>
 		<ResourceCompiler>
 			<Add option="`$(#WX_CONFIG) --rcflags`" />
 		</ResourceCompiler>
 		<Linker>
-			<Add option="`$(#WX_CONFIG) --libs`" />
+			<Add option="`$(#WX_CONFIG) --libs all`" />
 		</Linker>
+		<Unit filename="ImageArrow.h" />
 		<Unit filename="ImageLabelGuiApp.cpp" />
 		<Unit filename="ImageLabelGuiApp.h" />
 		<Unit filename="ImageLabelGuiMain.cpp" />
@@ -47,6 +49,10 @@
 		<Unit filename="resource.rc">
 			<Option compilerVar="WINDRES" />
 		</Unit>
+		<Unit filename="wxMathPlot/MathPlotConfig.cpp" />
+		<Unit filename="wxMathPlot/MathPlotConfig.h" />
+		<Unit filename="wxMathPlot/mathplot.cpp" />
+		<Unit filename="wxMathPlot/mathplot.h" />
 		<Unit filename="wxsmith/ImageLabelGuiframe.wxs" />
 		<Extensions>
 			<wxsmith version="1">

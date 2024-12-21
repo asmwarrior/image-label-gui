@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <wxsmith>
 	<object class="wxFrame" name="ImageLabelGuiFrame">
+		<id_arg>0</id_arg>
 		<object class="wxAuiManager" variable="AuiManager1" member="yes">
 			<object class="AuiManagerItem">
-				<object class="mpWindow" name="" variable="MathPlot1" member="yes">
+				<object class="mpWindow" name="" variable="m_MathPlot" member="yes">
 					<pos>181,113</pos>
 				</object>
 				<name>image</name>
@@ -19,6 +20,40 @@
 				<dockabledirection></dockabledirection>
 				<floatable>0</floatable>
 				<movable>0</movable>
+				<destroyonclose>0</destroyonclose>
+				<firstadd>0</firstadd>
+			</object>
+			<object class="AuiManagerItem">
+				<object class="wxPanel" name="ID_PANEL1" variable="Panel1" member="yes">
+					<minsize>150,0</minsize>
+					<object class="wxBoxSizer" variable="BoxSizer1" member="no">
+						<orient>wxVERTICAL</orient>
+						<object class="sizeritem">
+							<object class="wxButton" name="ID_BUTTON1" variable="m_ButtonLoadImage" member="yes">
+								<label>Load image</label>
+								<handler function="OnButtonLoadImageClick" entry="EVT_BUTTON" />
+							</object>
+							<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+							<border>5</border>
+						</object>
+						<object class="sizeritem">
+							<object class="wxCheckBox" name="ID_CHECKBOX1" variable="m_CheckBoxDrawArrow" member="yes">
+								<label>Draw arrow</label>
+								<handler function="OnCheckBoxDrawArrowClick" entry="EVT_CHECKBOX" />
+							</object>
+							<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+							<border>5</border>
+						</object>
+					</object>
+				</object>
+				<name>control</name>
+				<caption>Pane caption</caption>
+				<minimizebutton>0</minimizebutton>
+				<maximizebutton>0</maximizebutton>
+				<pinbutton>0</pinbutton>
+				<dockdirection>Right</dockdirection>
+				<dockfixed>0</dockfixed>
+				<dockabledirection></dockabledirection>
 				<destroyonclose>0</destroyonclose>
 				<firstadd>0</firstadd>
 			</object>
