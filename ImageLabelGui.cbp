@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="image-label-gui" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="bin/Debug/ImageLabelGui" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="0" />
+				<Option compiler="gcc" />
+				<Option projectLinkerOptionsRelation="2" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+			</Target>
+			<Target title="Release">
+				<Option output="bin/Release/ImageLabelGui" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Release/" />
+				<Option type="0" />
+				<Option compiler="gcc" />
+				<Option projectLinkerOptionsRelation="2" />
+				<Compiler>
+					<Add option="-O2" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="`$(#WX_CONFIG) --cflags`" />
+			<Add option="-Wall" />
+		</Compiler>
+		<ResourceCompiler>
+			<Add option="`$(#WX_CONFIG) --rcflags`" />
+		</ResourceCompiler>
+		<Linker>
+			<Add option="`$(#WX_CONFIG) --libs`" />
+		</Linker>
+		<Unit filename="ImageLabelGuiApp.cpp" />
+		<Unit filename="ImageLabelGuiApp.h" />
+		<Unit filename="ImageLabelGuiMain.cpp" />
+		<Unit filename="ImageLabelGuiMain.h" />
+		<Unit filename="resource.rc">
+			<Option compilerVar="WINDRES" />
+		</Unit>
+		<Unit filename="wxsmith/ImageLabelGuiframe.wxs" />
+		<Extensions>
+			<wxsmith version="1">
+				<gui name="wxWidgets" src="ImageLabelGuiApp.cpp" main="ImageLabelGuiFrame" init_handlers="necessary" language="CPP" />
+				<resources>
+					<wxFrame wxs="wxsmith/ImageLabelGuiframe.wxs" src="ImageLabelGuiMain.cpp" hdr="ImageLabelGuiMain.h" fwddecl="0" i18n="1" name="ImageLabelGuiFrame" language="CPP" />
+				</resources>
+			</wxsmith>
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>

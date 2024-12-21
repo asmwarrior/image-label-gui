@@ -1,0 +1,39 @@
+# Force .wxs and .cbp files to use LF line endings
+*.wxs eol=lf
+*.cbp eol=lf
+
+
+# Set the default behavior, in case people don't have core.autocrlf set.
+* text=auto
+
+# Explicitly declare text files you want to always be normalized and converted
+# to native line endings on checkout.
+*.c text
+*.cpp text
+*.h text
+*.hpp text
+*.txt text
+*.ld text
+
+# Declare files that will always have LF line endings on checkout.
+*.cbp text eol=lf
+
+# Denote all files that are truly binary and should not be modified.
+*.png binary
+*.jpg binary
+
+
+###### Git
+.gitattributes text
+.gitignore text
+.gitconfig text
+.gitmodules text
+
+##### Windows
+*.bat text eol=crlf
+*.exe binary
+*.dll binary
+
+##### Linux
+*.sh text eol=lf
+*.so binary
