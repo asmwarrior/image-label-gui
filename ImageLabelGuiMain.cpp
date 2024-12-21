@@ -331,7 +331,6 @@ void ImageLabelGuiFrame::OnUserMouseActionDrawArrow(void* Sender, wxMouseEvent& 
 
         cancel = true;
     }
-
     // Left mouse button released: Finalize a new arrow
     else if(event.LeftUp() && isDrawingArrow)
     {
@@ -341,6 +340,25 @@ void ImageLabelGuiFrame::OnUserMouseActionDrawArrow(void* Sender, wxMouseEvent& 
         currentPointScreen = mousePosition;
         endX = plotWindow->p2x(currentPointScreen.x);
         endY = plotWindow->p2y(currentPointScreen.y);
+
+        // Calculate the length of the arrow
+        double deltaX = endX - startX;
+        double deltaY = endY - startY;
+        double distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
+
+        const double minimumDistanceThreshold = 0.1; // Set your threshold here
+
+        if(distance < minimumDistanceThreshold)
+        {
+            // If the distance is too small, skip creating the arrow
+            wxMessageBox(
+                "The arrow is too short to be created. Please try again.",
+                "Arrow Too Short",
+                wxOK | wxICON_WARNING,
+                this
+            );
+            return;
+        }
 
         // Open a text entry dialog to get the label for the arrow
         wxTextEntryDialog textDialog(
@@ -363,7 +381,6 @@ void ImageLabelGuiFrame::OnUserMouseActionDrawArrow(void* Sender, wxMouseEvent& 
 
         cancel = true;
     }
-
     // Right mouse button released: Finalize arrow modifications
     else if(event.RightUp() && isModifyingArrow)
     {
