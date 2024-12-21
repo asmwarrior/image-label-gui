@@ -1,12 +1,3 @@
-/***************************************************************
- * Name:      ImageLabelGuiMain.cpp
- * Purpose:   Code for Application Frame
- * Author:     ()
- * Created:   2024-12-21
- * Copyright:  ()
- * License:
- **************************************************************/
-
 #include "ImageLabelGuiMain.h"
 #include <wx/msgdlg.h>
 
@@ -28,14 +19,16 @@
 #include "ImageArrow.h"  // custom arrow shape for wxMathPlot
 
 //helper functions
-enum wxbuildinfoformat {
-    short_f, long_f };
+enum wxbuildinfoformat
+{
+    short_f, long_f
+};
 
 wxString wxbuildinfo(wxbuildinfoformat format)
 {
     wxString wxbuild(wxVERSION_STRING);
 
-    if (format == long_f )
+    if(format == long_f)
     {
 #if defined(__WXMSW__)
         wxbuild << _T("-Windows");
@@ -62,14 +55,14 @@ const wxWindowID ImageLabelGuiFrame::idMenuAbout = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_STATUSBAR1 = wxNewId();
 //*)
 
-BEGIN_EVENT_TABLE(ImageLabelGuiFrame,wxFrame)
+BEGIN_EVENT_TABLE(ImageLabelGuiFrame, wxFrame)
     //(*EventTable(ImageLabelGuiFrame)
     //*)
 END_EVENT_TABLE()
 
 
 
-ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent,wxWindowID id)
+ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
 {
     //(*Initialize(ImageLabelGuiFrame)
     wxBoxSizer* BoxSizer1;
@@ -81,20 +74,20 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent,wxWindowID id)
 
     Create(parent, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE, _T("wxID_ANY"));
     AuiManager1 = new wxAuiManager(this, wxAUI_MGR_DEFAULT);
-    m_MathPlot = new mpWindow(this, wxID_ANY, wxPoint(181,113), wxDefaultSize, wxTAB_TRAVERSAL);
+    m_MathPlot = new mpWindow(this, wxID_ANY, wxPoint(181, 113), wxDefaultSize, wxTAB_TRAVERSAL);
     m_MathPlot->UpdateAll();
     m_MathPlot->Fit();
     AuiManager1->AddPane(m_MathPlot, wxAuiPaneInfo().Name(_T("image")).CenterPane().Caption(_("image")));
     Panel1 = new wxPanel(this, ID_PANEL1, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL, _T("ID_PANEL1"));
-    Panel1->SetMinSize(wxSize(150,0));
+    Panel1->SetMinSize(wxSize(150, 0));
     BoxSizer1 = new wxBoxSizer(wxVERTICAL);
     m_ButtonLoadImage = new wxButton(Panel1, ID_BUTTON1, _("Load image"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON1"));
-    BoxSizer1->Add(m_ButtonLoadImage, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    BoxSizer1->Add(m_ButtonLoadImage, 0, wxALL | wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL, 5);
     m_CheckBoxDrawArrow = new wxCheckBox(Panel1, ID_CHECKBOX1, _("Draw arrow"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
     m_CheckBoxDrawArrow->SetValue(false);
-    BoxSizer1->Add(m_CheckBoxDrawArrow, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    BoxSizer1->Add(m_CheckBoxDrawArrow, 0, wxALL | wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL, 5);
     Panel1->SetSizer(BoxSizer1);
-    AuiManager1->AddPane(Panel1, wxAuiPaneInfo().Name(_T("control")).DefaultPane().Caption(_("control")).CaptionVisible().Right().MinSize(wxSize(150,0)));
+    AuiManager1->AddPane(Panel1, wxAuiPaneInfo().Name(_T("control")).DefaultPane().Caption(_("control")).CaptionVisible().Right().MinSize(wxSize(150, 0)));
     AuiManager1->Update();
     MenuBar1 = new wxMenuBar();
     Menu1 = new wxMenu();
@@ -109,8 +102,8 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent,wxWindowID id)
     StatusBar1 = new wxStatusBar(this, ID_STATUSBAR1, 0, _T("ID_STATUSBAR1"));
     int __wxStatusBarWidths_1[1] = { -1 };
     int __wxStatusBarStyles_1[1] = { wxSB_NORMAL };
-    StatusBar1->SetFieldsCount(1,__wxStatusBarWidths_1);
-    StatusBar1->SetStatusStyles(1,__wxStatusBarStyles_1);
+    StatusBar1->SetFieldsCount(1, __wxStatusBarWidths_1);
+    StatusBar1->SetStatusStyles(1, __wxStatusBarStyles_1);
     SetStatusBar(StatusBar1);
 
     Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ImageLabelGuiFrame::OnButtonLoadImageClick, this, ID_BUTTON1);
@@ -120,7 +113,6 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent,wxWindowID id)
     //*)
 
     InitializePlot();
-
 }
 
 ImageLabelGuiFrame::~ImageLabelGuiFrame()
@@ -151,14 +143,14 @@ void ImageLabelGuiFrame::OnButtonLoadImageClick(wxCommandEvent& event)
         wxFD_OPEN | wxFD_FILE_MUST_EXIST
     );
 
-    if (openFileDialog.ShowModal() == wxID_CANCEL)
+    if(openFileDialog.ShowModal() == wxID_CANCEL)
         return; // User cancelled
 
     // Load the selected image
     wxString filePath = openFileDialog.GetPath();
     wxString fileName = openFileDialog.GetFilename();
     wxImage image;
-    if (!image.LoadFile(filePath))
+    if(!image.LoadFile(filePath))
     {
         wxLogError("Failed to load image: %s", filePath);
         return;
@@ -368,7 +360,7 @@ void ImageLabelGuiFrame::OnUserMouseActionDrawArrow(void* Sender, wxMouseEvent& 
         );
 
         wxString label = "Arrow"; // Default label
-        if (textDialog.ShowModal() == wxID_OK)
+        if(textDialog.ShowModal() == wxID_OK)
         {
             label = textDialog.GetValue(); // Get the user-entered label
         }
@@ -440,7 +432,7 @@ void ImageLabelGuiFrame::DrawArrowHead(wxDC& dc, const wxPoint& start, const wxP
     double dy = end.y - start.y;
     double length = std::sqrt(dx * dx + dy * dy);
 
-    if (length == 0) return;
+    if(length == 0) return;
 
     // Normalize the direction vector
     dx /= length;
@@ -470,11 +462,11 @@ mpArrow* ImageLabelGuiFrame::FindClosestArrowLayer(mpWindow* plotWindow, double 
     double minDistance = std::numeric_limits<double>::max();
 
     // Iterate over all layers to find the closest arrow
-    for (unsigned int i = 0; i < plotWindow->CountAllLayers(); i++)
+    for(unsigned int i = 0; i < plotWindow->CountAllLayers(); i++)
     {
         auto layer = plotWindow->GetLayer(i);
         mpArrow* arrowLayer = dynamic_cast<mpArrow*>(layer);
-        if (arrowLayer && arrowLayer->GetName() == "Arrow")
+        if(arrowLayer && arrowLayer->GetName() == "Arrow")
         {
             // Assuming mpArrow has GetStartPoint() and GetEndPoint() methods
             auto startPoint = arrowLayer->GetStartPoint(); // Should return a std::pair<double, double>
@@ -486,7 +478,7 @@ mpArrow* ImageLabelGuiFrame::FindClosestArrowLayer(mpWindow* plotWindow, double 
             double endY = endPoint.y;
 
             double distance = DistanceToLine(mouseX, mouseY, startX, startY, endX, endY);
-            if (distance < minDistance)
+            if(distance < minDistance)
             {
                 minDistance = distance;
                 closestArrow = arrowLayer;
@@ -501,49 +493,49 @@ mpArrow* ImageLabelGuiFrame::FindClosestArrowLayer(mpWindow* plotWindow, double 
 
 void ImageLabelGuiFrame::InitializePlot(void)
 {
-  m_MathPlot->EnableDoubleBuffer(true);
-  m_MathPlot->SetMargins(50, 20, 80, 80);
+    m_MathPlot->EnableDoubleBuffer(true);
+    m_MathPlot->SetMargins(50, 20, 80, 80);
 
-  bottomAxis = new mpScaleX(wxT("X"), mpALIGN_CENTERX, true, mpX_NORMAL);
-  bottomAxis->SetLabelFormat("%g");
-  leftAxis = new mpScaleY(wxT("Y"), mpALIGN_CENTERY, true);
-  leftAxis->SetLabelFormat("%g");
+    bottomAxis = new mpScaleX(wxT("X"), mpALIGN_CENTERX, true, mpX_NORMAL);
+    bottomAxis->SetLabelFormat("%g");
+    leftAxis = new mpScaleY(wxT("Y"), mpALIGN_CENTERY, true);
+    leftAxis->SetLabelFormat("%g");
 
-  wxFont graphFont(11, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL);
-  wxPen axispen(*wxRED, 2, wxPENSTYLE_SOLID);
-  bottomAxis->SetFont(graphFont);
-  leftAxis->SetFont(graphFont);
-  bottomAxis->SetPen(axispen);
-  leftAxis->SetPen(axispen);
+    wxFont graphFont(11, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL);
+    wxPen axispen(*wxRED, 2, wxPENSTYLE_SOLID);
+    bottomAxis->SetFont(graphFont);
+    leftAxis->SetFont(graphFont);
+    bottomAxis->SetPen(axispen);
+    leftAxis->SetPen(axispen);
 
-  m_MathPlot->AddLayer(bottomAxis);
-  m_MathPlot->AddLayer(leftAxis);
-  mpTitle* plotTitle;
-  m_MathPlot->AddLayer(plotTitle = new mpTitle(_("Demo MathPlot")));
+    m_MathPlot->AddLayer(bottomAxis);
+    m_MathPlot->AddLayer(leftAxis);
+    mpTitle* plotTitle;
+    m_MathPlot->AddLayer(plotTitle = new mpTitle(_("Demo MathPlot")));
 
-  wxFont titleFont(12, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD);
-  plotTitle->SetFont(titleFont);
+    wxFont titleFont(12, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD);
+    plotTitle->SetFont(titleFont);
 
-  mpInfoCoords* info;
-  m_MathPlot->AddLayer(info = new mpInfoCoords());
-  info->SetVisible(true);
+    mpInfoCoords* info;
+    m_MathPlot->AddLayer(info = new mpInfoCoords());
+    info->SetVisible(true);
 
-  mpInfoLegend* legend;
-  m_MathPlot->AddLayer(legend = new mpInfoLegend());
-  legend->SetItemDirection(mpHorizontal); // Note: Comment out this line to test mpVertical
-  legend->SetVisible(true);
+    mpInfoLegend* legend;
+    m_MathPlot->AddLayer(legend = new mpInfoLegend());
+    legend->SetItemDirection(mpHorizontal); // Note: Comment out this line to test mpVertical
+    legend->SetVisible(true);
 
-  m_MathPlot->Fit();
+    m_MathPlot->Fit();
 }
 
 void ImageLabelGuiFrame::CleanPlot(void)
 {
-  m_MathPlot->DelAllPlot(true);
-  bottomAxis->SetAlign(mpALIGN_CENTERX);
-  bottomAxis->SetLogAxis(false);
-  leftAxis->SetAlign(mpALIGN_CENTERY);
-  leftAxis->SetLogAxis(false);
-  bottomAxis->SetAuto(true);
-  m_MathPlot->DelLayer(m_MathPlot->GetLayerByName(_T("BarChart")), true);
-  m_MathPlot->DelLayer(m_MathPlot->GetLayerByClassName("mpBitmapLayer"), true);
+    m_MathPlot->DelAllPlot(true);
+    bottomAxis->SetAlign(mpALIGN_CENTERX);
+    bottomAxis->SetLogAxis(false);
+    leftAxis->SetAlign(mpALIGN_CENTERY);
+    leftAxis->SetLogAxis(false);
+    bottomAxis->SetAuto(true);
+    m_MathPlot->DelLayer(m_MathPlot->GetLayerByName(_T("BarChart")), true);
+    m_MathPlot->DelLayer(m_MathPlot->GetLayerByClassName("mpBitmapLayer"), true);
 }
