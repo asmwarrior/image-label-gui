@@ -485,7 +485,7 @@ mpArrow* ImageLabelGuiFrame::FindClosestArrowLayer(mpWindow* plotWindow, double 
 void ImageLabelGuiFrame::InitializePlot(void)
 {
     m_MathPlot->EnableDoubleBuffer(true);
-    m_MathPlot->SetMargins(50, 20, 80, 80);
+    m_MathPlot->SetMargins(80, 80, 80, 80);
 
     bottomAxis = new mpScaleX(wxT("X"), mpALIGN_CENTERX, true, mpX_NORMAL);
     bottomAxis->SetLabelFormat("%g");
