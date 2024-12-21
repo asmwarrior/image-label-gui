@@ -9,7 +9,7 @@
 				</object>
 				<name>image</name>
 				<standardpanetype>Center</standardpanetype>
-				<caption>Pane caption</caption>
+				<caption>image</caption>
 				<captionvisible>0</captionvisible>
 				<minimizebutton>0</minimizebutton>
 				<maximizebutton>0</maximizebutton>
@@ -47,7 +47,7 @@
 					</object>
 				</object>
 				<name>control</name>
-				<caption>Pane caption</caption>
+				<caption>control</caption>
 				<minimizebutton>0</minimizebutton>
 				<maximizebutton>0</maximizebutton>
 				<pinbutton>0</pinbutton>

@@ -84,7 +84,7 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent,wxWindowID id)
     m_MathPlot = new mpWindow(this, wxID_ANY, wxPoint(181,113), wxDefaultSize, wxTAB_TRAVERSAL);
     m_MathPlot->UpdateAll();
     m_MathPlot->Fit();
-    AuiManager1->AddPane(m_MathPlot, wxAuiPaneInfo().Name(_T("image")).CenterPane().Caption(_("Pane caption")));
+    AuiManager1->AddPane(m_MathPlot, wxAuiPaneInfo().Name(_T("image")).CenterPane().Caption(_("image")));
     Panel1 = new wxPanel(this, ID_PANEL1, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL, _T("ID_PANEL1"));
     Panel1->SetMinSize(wxSize(150,0));
     BoxSizer1 = new wxBoxSizer(wxVERTICAL);
@@ -94,7 +94,7 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent,wxWindowID id)
     m_CheckBoxDrawArrow->SetValue(false);
     BoxSizer1->Add(m_CheckBoxDrawArrow, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     Panel1->SetSizer(BoxSizer1);
-    AuiManager1->AddPane(Panel1, wxAuiPaneInfo().Name(_T("control")).DefaultPane().Caption(_("Pane caption")).CaptionVisible().Right().MinSize(wxSize(150,0)));
+    AuiManager1->AddPane(Panel1, wxAuiPaneInfo().Name(_T("control")).DefaultPane().Caption(_("control")).CaptionVisible().Right().MinSize(wxSize(150,0)));
     AuiManager1->Update();
     MenuBar1 = new wxMenuBar();
     Menu1 = new wxMenu();
@@ -118,6 +118,9 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent,wxWindowID id)
     Bind(wxEVT_COMMAND_MENU_SELECTED, &ImageLabelGuiFrame::OnQuit, this, idMenuQuit);
     Bind(wxEVT_COMMAND_MENU_SELECTED, &ImageLabelGuiFrame::OnAbout, this, idMenuAbout);
     //*)
+
+    InitializePlot();
+
 }
 
 ImageLabelGuiFrame::~ImageLabelGuiFrame()
@@ -166,9 +169,7 @@ void ImageLabelGuiFrame::OnButtonLoadImageClick(wxCommandEvent& event)
     m_LoadedImageHeight = image.GetHeight();
     m_LoadedImageFilename = fileName;
 
-    // CleanPlot(); // Remove any existing layers
-    m_MathPlot->DelAllPlot(true);
-    m_MathPlot->DelLayer(m_MathPlot->GetLayerByClassName("mpBitmapLayer"), true);
+    CleanPlot(); // Remove any existing layers
 
     // Create a bitmap layer
     mpBitmapLayer* bitmapLayer = new mpBitmapLayer();
@@ -497,3 +498,52 @@ mpArrow* ImageLabelGuiFrame::FindClosestArrowLayer(mpWindow* plotWindow, double 
     return (minDistance < 5.0) ? closestArrow : nullptr;
 }
 
+
+void ImageLabelGuiFrame::InitializePlot(void)
+{
+  m_MathPlot->EnableDoubleBuffer(true);
+  m_MathPlot->SetMargins(50, 20, 80, 80);
+
+  bottomAxis = new mpScaleX(wxT("X"), mpALIGN_CENTERX, true, mpX_NORMAL);
+  bottomAxis->SetLabelFormat("%g");
+  leftAxis = new mpScaleY(wxT("Y"), mpALIGN_CENTERY, true);
+  leftAxis->SetLabelFormat("%g");
+
+  wxFont graphFont(11, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL);
+  wxPen axispen(*wxRED, 2, wxPENSTYLE_SOLID);
+  bottomAxis->SetFont(graphFont);
+  leftAxis->SetFont(graphFont);
+  bottomAxis->SetPen(axispen);
+  leftAxis->SetPen(axispen);
+
+  m_MathPlot->AddLayer(bottomAxis);
+  m_MathPlot->AddLayer(leftAxis);
+  mpTitle* plotTitle;
+  m_MathPlot->AddLayer(plotTitle = new mpTitle(_("Demo MathPlot")));
+
+  wxFont titleFont(12, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD);
+  plotTitle->SetFont(titleFont);
+
+  mpInfoCoords* info;
+  m_MathPlot->AddLayer(info = new mpInfoCoords());
+  info->SetVisible(true);
+
+  mpInfoLegend* legend;
+  m_MathPlot->AddLayer(legend = new mpInfoLegend());
+  legend->SetItemDirection(mpHorizontal); // Note: Comment out this line to test mpVertical
+  legend->SetVisible(true);
+
+  m_MathPlot->Fit();
+}
+
+void ImageLabelGuiFrame::CleanPlot(void)
+{
+  m_MathPlot->DelAllPlot(true);
+  bottomAxis->SetAlign(mpALIGN_CENTERX);
+  bottomAxis->SetLogAxis(false);
+  leftAxis->SetAlign(mpALIGN_CENTERY);
+  leftAxis->SetLogAxis(false);
+  bottomAxis->SetAuto(true);
+  m_MathPlot->DelLayer(m_MathPlot->GetLayerByName(_T("BarChart")), true);
+  m_MathPlot->DelLayer(m_MathPlot->GetLayerByClassName("mpBitmapLayer"), true);
+}

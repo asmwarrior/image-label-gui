@@ -60,6 +60,12 @@ class ImageLabelGuiFrame: public wxFrame
         //*)
 
     // user defined variables
+
+    mpScaleX *bottomAxis = NULL;
+    mpScaleY *leftAxis = NULL;
+    void InitializePlot(void);
+    void CleanPlot(void);
+
     int m_LoadedImageWidth;
     int m_LoadedImageHeight;
     wxString m_LoadedImageFilename;
