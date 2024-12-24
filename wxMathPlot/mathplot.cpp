@@ -3693,6 +3693,8 @@ void mpWindow::OnPaint(wxPaintEvent &WXUNUSED(event))
 #endif
   int h, w;
   dc.GetSize(&w, &h);   // This is the size of the visible area only!
+  if (w == 0 || h == 0)
+    return;
   SetScreen(w, h);
   wxMemoryDC* m_buff_dc = NULL;
 
