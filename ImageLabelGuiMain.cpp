@@ -133,6 +133,7 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
 ImageLabelGuiFrame::~ImageLabelGuiFrame()
 {
     //(*Destroy(ImageLabelGuiFrame)
+    AuiManager1->UnInit();
     //*)
 }
 
