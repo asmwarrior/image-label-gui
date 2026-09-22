@@ -15,6 +15,7 @@
 //*)
 
 class mpArrow;
+class mpLabel;
 
 class ImageLabelGuiFrame: public wxFrame
 {
@@ -34,11 +35,13 @@ private:
     void OnButtonLoadImageClick(wxCommandEvent& event);
     void OnCheckBoxDrawArrowClick(wxCommandEvent& event);
     void OnButtonGenerateLatexCodeClick(wxCommandEvent& event);
+    void OnCheckBoxDrawLabelClick(wxCommandEvent& event);
     //*)
 
     //(*Identifiers(ImageLabelGuiFrame)
     static const wxWindowID ID_BUTTON1;
     static const wxWindowID ID_CHECKBOX1;
+    static const wxWindowID ID_CHECKBOX2;
     static const wxWindowID ID_BUTTON2;
     static const wxWindowID ID_PANEL1;
     static const wxWindowID ID_TEXTCTRL1;
@@ -53,6 +56,7 @@ private:
     wxButton* m_ButtonGenerateLatexCode;
     wxButton* m_ButtonLoadImage;
     wxCheckBox* m_CheckBoxDrawArrow;
+    wxCheckBox* m_CheckBoxDrawLabel;
     wxPanel* Panel1;
     wxStatusBar* StatusBar1;
     wxTextCtrl* m_TextCtrlLog;
@@ -72,6 +76,9 @@ private:
     void OnUserMouseActionDrawArrow(void* Sender, wxMouseEvent& event, bool& cancel);
     void DrawArrowHead(wxDC& dc, const wxPoint& start, const wxPoint& end);
     mpArrow* FindClosestArrowLayer(mpWindow* plotWindow, double mouseX, double mouseY);
+    void OnUserMouseActionDrawLabel(void* Sender, wxMouseEvent& event, bool& cancel);
+    mpLabel* FindClosestLabelLayer(mpWindow* plotWindow, const wxPoint& mouseScreenPosition);
+    void AddLabelAtScreenPosition(mpWindow* plotWindow, const wxPoint& mouseScreenPosition);
 
 
 

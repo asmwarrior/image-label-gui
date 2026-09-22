@@ -45,6 +45,14 @@
 							<border>5</border>
 						</object>
 						<object class="sizeritem">
+							<object class="wxCheckBox" name="ID_CHECKBOX2" variable="m_CheckBoxDrawLabel" member="yes">
+								<label>Draw label</label>
+								<handler function="OnCheckBoxDrawLabelClick" entry="EVT_CHECKBOX" />
+							</object>
+							<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+							<border>5</border>
+						</object>
+						<object class="sizeritem">
 							<object class="wxButton" name="ID_BUTTON2" variable="m_ButtonGenerateLatexCode" member="yes">
 								<label>Generate latex code</label>
 								<handler function="OnButtonGenerateLatexCodeClick" entry="EVT_BUTTON" />

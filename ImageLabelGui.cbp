@@ -48,6 +48,7 @@
 		<Unit filename="ImageLabelGuiApp.h" />
 		<Unit filename="ImageLabelGuiMain.cpp" />
 		<Unit filename="ImageLabelGuiMain.h" />
+		<Unit filename="ImageLabelLayer.h" />
 		<Unit filename="resource.rc">
 			<Option compilerVar="WINDRES" />
 		</Unit>

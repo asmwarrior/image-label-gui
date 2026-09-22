@@ -22,6 +22,8 @@
 
 #include "ImageArrow.h"  // custom arrow shape for wxMathPlot
 
+#include "ImageLabelLayer.h"  // custom label shape for wxMathPlot
+
 //helper functions
 enum wxbuildinfoformat
 {
@@ -50,9 +52,31 @@ wxString wxbuildinfo(wxbuildinfoformat format)
     return wxbuild;
 }
 
+// Escape the characters which have a special meaning in LaTeX
+static wxString EscapeLatex(const wxString& text)
+{
+    wxString escaped = text;
+    escaped.Replace("_", "\\_");
+    escaped.Replace("&", "\\&");
+    escaped.Replace("%", "\\%");
+    escaped.Replace("#", "\\#");
+    escaped.Replace("$", "\\$");
+    escaped.Replace("^", "\\^{}");
+    escaped.Replace("{", "\\{");
+    escaped.Replace("}", "\\}");
+    return escaped;
+}
+
+// Restrict a point to the image area, which is the [0,1] x [0,1] square of the plot
+static wxRealPoint ClampToImage(double x, double y)
+{
+    return wxRealPoint(wxMin(wxMax(x, 0.0), 1.0), wxMin(wxMax(y, 0.0), 1.0));
+}
+
 //(*IdInit(ImageLabelGuiFrame)
 const wxWindowID ImageLabelGuiFrame::ID_BUTTON1 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_CHECKBOX1 = wxNewId();
+const wxWindowID ImageLabelGuiFrame::ID_CHECKBOX2 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_BUTTON2 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_PANEL1 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_TEXTCTRL1 = wxNewId();
@@ -92,6 +116,9 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
     m_CheckBoxDrawArrow = new wxCheckBox(Panel1, ID_CHECKBOX1, _("Draw arrow"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
     m_CheckBoxDrawArrow->SetValue(false);
     BoxSizer1->Add(m_CheckBoxDrawArrow, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    m_CheckBoxDrawLabel = new wxCheckBox(Panel1, ID_CHECKBOX2, _("Draw label"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX2"));
+    m_CheckBoxDrawLabel->SetValue(false);
+    BoxSizer1->Add(m_CheckBoxDrawLabel, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     m_ButtonGenerateLatexCode = new wxButton(Panel1, ID_BUTTON2, _("Generate latex code"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON2"));
     BoxSizer1->Add(m_ButtonGenerateLatexCode, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     Panel1->SetSizer(BoxSizer1);
@@ -119,6 +146,7 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
 
     Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ImageLabelGuiFrame::OnButtonLoadImageClick, this, ID_BUTTON1);
     Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &ImageLabelGuiFrame::OnCheckBoxDrawArrowClick, this, ID_CHECKBOX1);
+    Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &ImageLabelGuiFrame::OnCheckBoxDrawLabelClick, this, ID_CHECKBOX2);
     Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick, this, ID_BUTTON2);
     Bind(wxEVT_COMMAND_MENU_SELECTED, &ImageLabelGuiFrame::OnQuit, this, idMenuQuit);
     Bind(wxEVT_COMMAND_MENU_SELECTED, &ImageLabelGuiFrame::OnAbout, this, idMenuAbout);
@@ -171,6 +199,9 @@ void ImageLabelGuiFrame::OnCheckBoxDrawArrowClick(wxCommandEvent& event)
 {
     if(m_CheckBoxDrawArrow->GetValue())
     {
+        // mpWindow has a single user mouse action callback, so only one drawing mode can be active
+        m_CheckBoxDrawLabel->SetValue(false);
+
         m_MathPlot->SetOnUserMouseAction([this](void* Sender, wxMouseEvent & event, bool & cancel)
         {
             OnUserMouseActionDrawArrow(Sender, event, cancel);
@@ -548,13 +579,15 @@ void ImageLabelGuiFrame::CleanPlot(void)
     m_MathPlot->DelLayer(m_MathPlot->GetLayerByName(_T("BarChart")), true);
     m_MathPlot->DelLayer(m_MathPlot->GetLayerByClassName("mpBitmapLayer"), true);
 
-    // Remove specific layers of type mpArrow
+    // Remove specific layers of type mpArrow and mpLabel
     // note the loop variable i and the CountAllLayers() will be changed if one layer get removed
     for (unsigned int i = 0; i < m_MathPlot->CountAllLayers(); /* no increment here */)
     {
         auto layer = m_MathPlot->GetLayer(i);
         mpArrow* arrowLayer = dynamic_cast<mpArrow*>(layer);
-        if (arrowLayer && arrowLayer->GetName() == "Arrow")
+        mpLabel* labelLayer = dynamic_cast<mpLabel*>(layer);
+        if ((arrowLayer && arrowLayer->GetName() == "Arrow") ||
+            (labelLayer && labelLayer->GetName() == "Label"))
         {
             m_MathPlot->DelLayer(layer, true);
         }
@@ -586,14 +619,7 @@ void ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick(wxCommandEvent& event)
             wxString label = arrowLayer->GetLabel(); // Now wxString supports Unicode
 
             // Escape LaTeX special characters in the label
-            label.Replace("_", "\\_");
-            label.Replace("&", "\\&");
-            label.Replace("%", "\\%");
-            label.Replace("#", "\\#");
-            label.Replace("$", "\\$");
-            label.Replace("^", "\\^{}");
-            label.Replace("{", "\\{");
-            label.Replace("}", "\\}");
+            label = EscapeLatex(label);
 
             // Calculate the annotation placement based on start position
             if (start.x < 0.0 && start.y > 0.0 && start.y < 1.0)
@@ -612,6 +638,13 @@ void ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick(wxCommandEvent& event)
             {
                 textStream << wxString::Format("    \\draw[annotation above = {%s at %.2f}] to (%.2f,%.2f);\n", label, start.x, end.x, end.y);
             }
+        }
+        else if (mpLabel* labelLayer = dynamic_cast<mpLabel*>(layer))
+        {
+            // A coordinate label can be placed at an arbitrary position of the image
+            const wxRealPoint position = labelLayer->GetPosition();
+            textStream << wxString::Format("    \\draw[coordinate label = {%s at (%.2f,%.2f)}];\n",
+                                           EscapeLatex(labelLayer->GetText()), position.x, position.y);
         }
     }
 
@@ -655,4 +688,172 @@ void ImageLabelGuiFrame::LoadImage(const wxString& filePath)
     // Update the plot
     m_MathPlot->Fit();
     m_MathPlot->Refresh();
+}
+
+void ImageLabelGuiFrame::OnCheckBoxDrawLabelClick(wxCommandEvent& event)
+{
+    if(m_CheckBoxDrawLabel->GetValue())
+    {
+        // mpWindow has a single user mouse action callback, so only one drawing mode can be active
+        m_CheckBoxDrawArrow->SetValue(false);
+
+        m_MathPlot->SetOnUserMouseAction([this](void* Sender, wxMouseEvent & event, bool & cancel)
+        {
+            OnUserMouseActionDrawLabel(Sender, event, cancel);
+        });
+    }
+    else
+        m_MathPlot->UnSetOnUserMouseAction();
+}
+
+void ImageLabelGuiFrame::OnUserMouseActionDrawLabel(void* Sender, wxMouseEvent& event, bool& cancel)
+{
+    static wxOverlay m_overlay;
+    static wxPoint pressedPointScreen; // Screen position where the left button was pressed
+    static wxPoint dragOffset;         // Offset between the mouse and the label which is moved
+    static bool isPlacingLabel = false;
+    static bool isMovingLabel = false;
+    static mpLabel* selectedLabel = nullptr;
+
+    const wxPoint mousePosition = event.GetPosition();
+    mpWindow* plotWindow = (mpWindow*)Sender;   // Cast Sender to mpWindow
+
+    cancel = true;
+
+    // Left mouse button down: remember the position, the label itself is added on release
+    if(event.LeftDown())
+    {
+        isPlacingLabel = true;
+        pressedPointScreen = mousePosition;
+    }
+    // Right mouse button down: start moving the label which is closest to the mouse
+    else if(event.RightDown())
+    {
+        selectedLabel = FindClosestLabelLayer(plotWindow, mousePosition);
+
+        if(selectedLabel)
+        {
+            const wxRealPoint position = selectedLabel->GetPosition();
+            const wxPoint labelPointScreen(plotWindow->x2p(position.x), plotWindow->y2p(position.y));
+
+            dragOffset = mousePosition - labelPointScreen;
+            isMovingLabel = true;
+        }
+    }
+    // Left mouse button released: a simple click adds a new label, a dragged mouse is ignored
+    else if(event.LeftUp() && isPlacingLabel)
+    {
+        isPlacingLabel = false;
+
+        if(DistanceBetweenPoints(pressedPointScreen, mousePosition) < 5)
+        {
+            AddLabelAtScreenPosition(plotWindow, mousePosition);
+        }
+    }
+    // Right mouse button released: keep the new position of the moved label
+    else if(event.RightUp() && isMovingLabel)
+    {
+        isMovingLabel = false;
+        m_overlay.Reset();
+
+        if(selectedLabel)
+        {
+            plotWindow->Refresh();
+            selectedLabel = nullptr;
+        }
+    }
+    // Mouse dragging with the right button: move the selected label
+    else if(event.Dragging() && event.RightIsDown() && isMovingLabel && selectedLabel)
+    {
+        const wxPoint newPointScreen = mousePosition - dragOffset;
+
+        // The label always stays inside the image
+        selectedLabel->SetPosition(ClampToImage(plotWindow->p2x(newPointScreen.x),
+                                                plotWindow->p2y(newPointScreen.y)));
+
+        // Draw a preview rectangle at the new position
+        wxClientDC dc(plotWindow);
+        PrepareDC(dc);
+        wxDCOverlay overlay(m_overlay, &dc);
+        overlay.Clear();
+
+        dc.SetPen(wxPen(*wxBLUE, 2));
+        dc.SetBrush(*wxTRANSPARENT_BRUSH);
+        dc.DrawRectangle(newPointScreen.x - 12, newPointScreen.y - 8, 24, 16);
+    }
+    // Right mouse double-click: edit the text of the selected label
+    else if(event.RightDClick())
+    {
+        selectedLabel = FindClosestLabelLayer(plotWindow, mousePosition);
+
+        if(selectedLabel)
+        {
+            wxTextEntryDialog textDialog(plotWindow,
+                                         "Edit the text of the label:",
+                                         "Label Text Editor",
+                                         selectedLabel->GetText());
+
+            if(textDialog.ShowModal() == wxID_OK && !textDialog.GetValue().IsEmpty())
+            {
+                selectedLabel->SetText(textDialog.GetValue());
+                plotWindow->Refresh();
+            }
+        }
+
+        selectedLabel = nullptr;
+    }
+}
+
+void ImageLabelGuiFrame::AddLabelAtScreenPosition(mpWindow* plotWindow, const wxPoint& mouseScreenPosition)
+{
+    // Ask for the text of the label before creating it
+    wxTextEntryDialog textDialog(this,
+                                 "Enter the text of the label:",
+                                 "Label Text",
+                                 "Label");
+
+    if(textDialog.ShowModal() != wxID_OK)
+        return; // the user cancelled the dialog
+
+    const wxString text = textDialog.GetValue();
+    if(text.IsEmpty())
+        return;
+
+    // p2x() and p2y() return the coordinates of the plot, which are the normalized
+    // image coordinates used by the annotationimage environment
+    const wxRealPoint position = ClampToImage(plotWindow->p2x(mouseScreenPosition.x),
+                                              plotWindow->p2y(mouseScreenPosition.y));
+
+    mpLabel* label = new mpLabel(position, text);
+    plotWindow->AddLayer(label, true);
+    plotWindow->Refresh();
+}
+
+mpLabel* ImageLabelGuiFrame::FindClosestLabelLayer(mpWindow* plotWindow, const wxPoint& mouseScreenPosition)
+{
+    mpLabel* closestLabel = nullptr;
+    double minDistance = std::numeric_limits<double>::max();
+
+    // Iterate over all layers to find the closest label
+    for(unsigned int i = 0; i < plotWindow->CountAllLayers(); i++)
+    {
+        auto layer = plotWindow->GetLayer(i);
+        mpLabel* labelLayer = dynamic_cast<mpLabel*>(layer);
+        if(labelLayer && labelLayer->GetName() == "Label")
+        {
+            const wxRealPoint position = labelLayer->GetPosition();
+            const wxPoint labelPointScreen(plotWindow->x2p(position.x), plotWindow->y2p(position.y));
+
+            // The distance is measured in screen pixels, such that it does not depend on the zoom level
+            const double distance = DistanceBetweenPoints(mouseScreenPosition, labelPointScreen);
+            if(distance < minDistance)
+            {
+                minDistance = distance;
+                closestLabel = labelLayer;
+            }
+        }
+    }
+
+    // Return the closest label layer if it is close enough to the mouse
+    return (minDistance < 10.0) ? closestLabel : nullptr;
 }
