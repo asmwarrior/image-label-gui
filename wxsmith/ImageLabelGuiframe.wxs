@@ -57,7 +57,15 @@
 								<label>Generate latex code</label>
 								<handler function="OnButtonGenerateLatexCodeClick" entry="EVT_BUTTON" />
 							</object>
-							<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+							<flag>wxALL|wxEXPAND</flag>
+							<border>5</border>
+						</object>
+						<object class="sizeritem">
+							<object class="wxButton" name="" variable="ButtonImportLatexCode" member="yes">
+								<label>Import latex code</label>
+								<handler function="OnButtonImportLatexCodeClick" entry="EVT_BUTTON" />
+							</object>
+							<flag>wxALL|wxEXPAND</flag>
 							<border>5</border>
 						</object>
 					</object>

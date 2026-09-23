@@ -36,6 +36,7 @@ private:
     void OnCheckBoxDrawArrowClick(wxCommandEvent& event);
     void OnButtonGenerateLatexCodeClick(wxCommandEvent& event);
     void OnCheckBoxDrawLabelClick(wxCommandEvent& event);
+    void OnButtonImportLatexCodeClick(wxCommandEvent& event);
     //*)
 
     //(*Identifiers(ImageLabelGuiFrame)
@@ -53,6 +54,7 @@ private:
     //(*Declarations(ImageLabelGuiFrame)
     mpWindow* m_MathPlot;
     wxAuiManager* AuiManager1;
+    wxButton* ButtonImportLatexCode;
     wxButton* m_ButtonGenerateLatexCode;
     wxButton* m_ButtonLoadImage;
     wxCheckBox* m_CheckBoxDrawArrow;

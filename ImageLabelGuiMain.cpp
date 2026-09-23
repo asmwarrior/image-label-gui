@@ -6,12 +6,14 @@
 #include <wx/string.h>
 //*)
 
+#include <wx/dialog.h>   // wxDialog
 #include <wx/filedlg.h>  // wxFileDialog
+#include <wx/sizer.h>    // wxBoxSizer
 #include <wx/textdlg.h>  // wxTextentryDialog
 #include <wx/msgdlg.h>
 #include <wx/overlay.h>
-#include <wx/sstream.h>  // For wxStringOutputStream
-#include <wx/txtstrm.h>  // For wxTextOutputStream
+#include <wx/sstream.h>  // For wxStringOutputStream / wxStringInputStream
+#include <wx/txtstrm.h>  // For wxTextOutputStream / wxTextInputStream
 #include <wx/log.h>
 #include <wx/dcclient.h> // wxClientDC
 #include <wx/filename.h> // wxFileName
@@ -67,6 +69,21 @@ static wxString EscapeLatex(const wxString& text)
     return escaped;
 }
 
+// Reverse the escaping applied by EscapeLatex
+static wxString UnescapeLatex(const wxString& text)
+{
+    wxString unescaped = text;
+    unescaped.Replace("\\_", "_");
+    unescaped.Replace("\\&", "&");
+    unescaped.Replace("\\%", "%");
+    unescaped.Replace("\\#", "#");
+    unescaped.Replace("\\$", "$");
+    unescaped.Replace("\\^{}", "^");
+    unescaped.Replace("\\{", "{");
+    unescaped.Replace("\\}", "}");
+    return unescaped;
+}
+
 // Restrict a point to the image area, which is the [0,1] x [0,1] square of the plot
 static wxRealPoint ClampToImage(double x, double y)
 {
@@ -120,7 +137,9 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
     m_CheckBoxDrawLabel->SetValue(false);
     BoxSizer1->Add(m_CheckBoxDrawLabel, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     m_ButtonGenerateLatexCode = new wxButton(Panel1, ID_BUTTON2, _("Generate latex code"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON2"));
-    BoxSizer1->Add(m_ButtonGenerateLatexCode, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    BoxSizer1->Add(m_ButtonGenerateLatexCode, 0, wxALL|wxEXPAND, 5);
+    ButtonImportLatexCode = new wxButton(Panel1, wxID_ANY, _("Import latex code"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator);
+    BoxSizer1->Add(ButtonImportLatexCode, 0, wxALL|wxEXPAND, 5);
     Panel1->SetSizer(BoxSizer1);
     AuiManager1->AddPane(Panel1, wxAuiPaneInfo().Name(_T("control")).DefaultPane().Caption(_("control")).CaptionVisible().Right().MinSize(wxSize(150,0)));
     m_TextCtrlLog = new wxTextCtrl(this, ID_TEXTCTRL1, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_RICH|wxTE_RICH2, wxDefaultValidator, _T("ID_TEXTCTRL1"));
@@ -148,6 +167,7 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
     Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &ImageLabelGuiFrame::OnCheckBoxDrawArrowClick, this, ID_CHECKBOX1);
     Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &ImageLabelGuiFrame::OnCheckBoxDrawLabelClick, this, ID_CHECKBOX2);
     Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick, this, ID_BUTTON2);
+    ButtonImportLatexCode->Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ImageLabelGuiFrame::OnButtonImportLatexCodeClick, this);
     Bind(wxEVT_COMMAND_MENU_SELECTED, &ImageLabelGuiFrame::OnQuit, this, idMenuQuit);
     Bind(wxEVT_COMMAND_MENU_SELECTED, &ImageLabelGuiFrame::OnAbout, this, idMenuAbout);
     //*)
@@ -652,6 +672,254 @@ void ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick(wxCommandEvent& event)
 
     // Display the LaTeX code in the text control
     m_TextCtrlLog->SetValue(stringStream.GetString());
+}
+
+// Parse a comma-separated coordinate pair like "0.52,0.78" into (x,y).
+// Returns true on success.
+static bool ParseCoordinatePair(const wxString& text, double& x, double& y)
+{
+    wxString trimmed = text;
+    trimmed.Trim(true).Trim(false);
+
+    int commaPos = trimmed.Find(',');
+    if(commaPos == wxNOT_FOUND)
+        return false;
+
+    wxString xStr = trimmed.Mid(0, commaPos);
+    wxString yStr = trimmed.Mid(commaPos + 1);
+    xStr.Trim(true).Trim(false);
+    yStr.Trim(true).Trim(false);
+
+    if(xStr.IsEmpty() || yStr.IsEmpty())
+        return false;
+
+    if(!xStr.ToDouble(&x))
+        return false;
+    if(!yStr.ToDouble(&y))
+        return false;
+    return true;
+}
+
+// Helper: read the content between two markers, e.g. "...label at 0.12]..."
+static wxString ExtractBetween(const wxString& text, const wxString& startMarker, const wxString& endMarker)
+{
+    int startPos = text.Find(startMarker);
+    if(startPos == wxNOT_FOUND)
+        return wxEmptyString;
+
+    startPos += startMarker.Length();
+    int endPos = text.Length();
+    if(!endMarker.IsEmpty())
+    {
+        int foundEnd = text.Mid(startPos).Find(endMarker);
+        if(foundEnd == wxNOT_FOUND)
+            return wxEmptyString;
+        endPos = startPos + foundEnd;
+    }
+
+    return text.Mid(startPos, endPos - startPos);
+}
+
+// Parse a single LaTeX line and create the corresponding arrow or label.
+// Supported formats (matching the generator in OnButtonGenerateLatexCodeClick):
+//   \\draw[annotation left  = {LABEL at POS}] to (X,Y);
+//   \\draw[annotation right = {LABEL at POS}] to (X,Y);
+//   \\draw[annotation below = {LABEL at POS}] to (X,Y);
+//   \\draw[annotation above = {LABEL at POS}] to (X,Y);
+//   \\draw[coordinate label = {TEXT at (X,Y)}];
+static bool ParseLatexLine(const wxString& line, mpWindow* plotWindow)
+{
+    wxString trimmed = line;
+    trimmed.Trim(true).Trim(false);
+
+    if(!trimmed.StartsWith("\\draw["))
+        return false;
+
+    wxString content = ExtractBetween(trimmed, "\\draw[", "]");
+    if(content.IsEmpty())
+        return false;
+
+    // Coordinate label: \draw[coordinate label = {text at (x,y)}];
+    if(content.StartsWith("coordinate label"))
+    {
+        wxString arg = ExtractBetween(content, "= {", "}");
+        if(arg.IsEmpty())
+            return false;
+
+        // arg format: "text at (x,y)"
+        int atPos = arg.Find(" at ");
+        if(atPos == wxNOT_FOUND)
+            return false;
+
+        wxString text = arg.Mid(0, atPos);
+        text.Trim(true).Trim(false);
+
+        wxString coords = ExtractBetween(arg, "(", ")");
+        if(coords.IsEmpty())
+            return false;
+
+        double x = 0.0, y = 0.0;
+        if(!ParseCoordinatePair(coords, x, y))
+            return false;
+
+        wxRealPoint position = ClampToImage(x, y);
+        mpLabel* label = new mpLabel(position, UnescapeLatex(text));
+        plotWindow->AddLayer(label, true);
+        return true;
+    }
+
+    // Annotation arrows: annotation <direction> = {label at pos}
+    wxString direction;
+    if(content.StartsWith("annotation left"))
+        direction = "left";
+    else if(content.StartsWith("annotation right"))
+        direction = "right";
+    else if(content.StartsWith("annotation below"))
+        direction = "below";
+    else if(content.StartsWith("annotation above"))
+        direction = "above";
+    else
+        return false;
+
+    wxString arg = ExtractBetween(content, "= {", "}");
+    if(arg.IsEmpty())
+        return false;
+
+    // arg format: "label at pos"
+    int atPos = arg.Find(" at ");
+    if(atPos == wxNOT_FOUND)
+        return false;
+
+    wxString labelText = arg.Mid(0, atPos);
+    labelText.Trim(true).Trim(false);
+
+    double pos = 0.0;
+    {
+        wxString posStr = arg.Mid(atPos + 4);
+        posStr.Trim(true).Trim(false);
+        if(!posStr.ToDouble(&pos))
+            return false;
+    }
+
+    // Extract "to (x,y)" from the remaining part of the line
+    wxString toPart = ExtractBetween(trimmed, "] to (", ");");
+    if(toPart.IsEmpty())
+        return false;
+
+    double endX = 0.0, endY = 0.0;
+    if(!ParseCoordinatePair(toPart, endX, endY))
+        return false;
+
+    // Reconstruct the start point from the annotation direction
+    const double outsideOffset = 0.15; // Same visual offset used by the generator
+    wxRealPoint start, end(endX, endY);
+    if(direction == "left")
+    {
+        start = wxRealPoint(-outsideOffset, pos);
+    }
+    else if(direction == "right")
+    {
+        start = wxRealPoint(1.0 + outsideOffset, pos);
+    }
+    else if(direction == "below")
+    {
+        start = wxRealPoint(pos, -outsideOffset);
+    }
+    else // above
+    {
+        start = wxRealPoint(pos, 1.0 + outsideOffset);
+    }
+
+    mpArrow* arrow = new mpArrow(start, end, UnescapeLatex(labelText));
+    plotWindow->AddLayer(arrow, true);
+    return true;
+}
+
+void ImageLabelGuiFrame::OnButtonImportLatexCodeClick(wxCommandEvent& event)
+{
+    // Build a small dialog with a multiline text control so the user can paste
+    // the generated (or hand-written) LaTeX code.
+    wxDialog dialog(this, wxID_ANY, _("Import LaTeX annotations"),
+                    wxDefaultPosition, wxSize(500, 400),
+                    wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER);
+
+    wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
+
+    wxTextCtrl* textCtrl = new wxTextCtrl(&dialog, wxID_ANY, wxEmptyString,
+                                          wxDefaultPosition, wxDefaultSize,
+                                          wxTE_MULTILINE | wxTE_DONTWRAP);
+    textCtrl->SetMinSize(wxSize(480, 300));
+    sizer->Add(textCtrl, 1, wxALL | wxEXPAND, 5);
+
+    wxBoxSizer* buttonSizer = new wxBoxSizer(wxHORIZONTAL);
+    buttonSizer->Add(new wxButton(&dialog, wxID_OK, _("Import")), 0, wxALL, 5);
+    buttonSizer->Add(new wxButton(&dialog, wxID_CANCEL, _("Cancel")), 0, wxALL, 5);
+    sizer->Add(buttonSizer, 0, wxALIGN_CENTER_HORIZONTAL, 5);
+
+    dialog.SetSizerAndFit(sizer);
+
+    if(dialog.ShowModal() != wxID_OK)
+        return;
+
+    wxString latexCode = textCtrl->GetValue();
+    if(latexCode.IsEmpty())
+        return;
+
+    // Optional: try to extract the image filename from
+    // \begin{annotationimage}{...}{filename}
+    wxString filename = ExtractBetween(latexCode, "}{", "}");
+    if(!filename.IsEmpty() && !filename.Contains("\\"))
+    {
+        wxFileName fileName(filename);
+        wxString fullPath = fileName.GetFullPath();
+        if(!fullPath.IsEmpty() && wxFileName::Exists(fullPath))
+        {
+            LoadImage(fullPath);
+        }
+    }
+
+    // Remove existing arrows and labels but keep the bitmap/axes/title/legend
+    for(unsigned int i = 0; i < m_MathPlot->CountAllLayers(); /* no increment */)
+    {
+        auto layer = m_MathPlot->GetLayer(i);
+        mpArrow* arrowLayer = dynamic_cast<mpArrow*>(layer);
+        mpLabel* labelLayer = dynamic_cast<mpLabel*>(layer);
+        if((arrowLayer && arrowLayer->GetName() == "Arrow") ||
+           (labelLayer && labelLayer->GetName() == "Label"))
+        {
+            m_MathPlot->DelLayer(layer, true);
+        }
+        else
+        {
+            ++i;
+        }
+    }
+
+    // Parse each line independently
+    wxStringInputStream inputStream(latexCode);
+    wxTextInputStream textStream(inputStream);
+    wxString line;
+    size_t importedCount = 0;
+    size_t failedCount = 0;
+
+    while(!inputStream.Eof())
+    {
+        line = textStream.ReadLine();
+        if(line.IsEmpty())
+            continue;
+
+        if(ParseLatexLine(line, m_MathPlot))
+            ++importedCount;
+        else if(line.Contains("\\draw["))
+            ++failedCount;
+    }
+
+    m_MathPlot->Refresh();
+
+    wxString message = wxString::Format("Imported %lu annotation(s).", static_cast<unsigned long>(importedCount));
+    if(failedCount > 0)
+        message += wxString::Format(" %lu line(s) could not be parsed.", static_cast<unsigned long>(failedCount));
+    wxMessageBox(message, _("Import result"), wxOK | wxICON_INFORMATION, this);
 }
 
     // Add your image loading function here
