@@ -1,0 +1,75 @@
+name: Build image-label-gui (MSYS2 & pedeps)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2 environment
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            curl
+            unzip
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-codeblocks
+            mingw-w64-x86_64-wxwidgets3.2-msw
+
+      - name: Install pedeps tool
+        run: |
+          # Fetch the latest pedeps release version and extract it to MinGW64 bin directory
+          LATEST_VERSION=$(curl -s https://api.github.com/repos/brechtsanders/pedeps/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "Latest pedeps version: ${LATEST_VERSION}"
+          curl -sL "https://github.com/brechtsanders/pedeps/releases/download/${LATEST_VERSION}/pedeps-${LATEST_VERSION}-win64.zip" -o pedeps.zip
+          unzip -q pedeps.zip -d /tmp/pedeps
+          cp /tmp/pedeps/bin/* /mingw64/bin/
+          rm -rf pedeps.zip /tmp/pedeps
+
+      - name: Build Code::Blocks Project
+        run: |
+          # Quietly build the Code::Blocks project in CLI mode
+          codeblocks --no-splash-screen --no-associative --no-dde --target="Release" --build image-label-gui.cbp
+
+      - name: Collect Executable and DLL Dependencies using pedeps
+        run: |
+          mkdir -p dist
+          
+          # Find the compiled executable file
+          EXE_PATH=$(find . -name "*.exe" | head -n 1)
+          if [ -z "$EXE_PATH" ]; then
+            echo "Error: Executable file not found!"
+            exit 1
+          fi
+          
+          echo "Found executable at: $EXE_PATH"
+          cp "$EXE_PATH" dist/
+
+          # Recursively copy all dependent DLLs using copypedeps; -X ignores system DLLs
+          EXE_NAME=$(basename "$EXE_PATH")
+          copypedeps -X dist/"$EXE_NAME" dist/
+
+      - name: Archive Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-label-gui-win64
+          path: dist/
