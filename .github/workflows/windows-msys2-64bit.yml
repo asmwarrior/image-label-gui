@@ -1,4 +1,4 @@
-name: Build image-label-gui (MSYS2 & pedeps)
+name: Build image-label-gui (MSYS2 UCRT64 & pedeps)
 
 on:
   push:
@@ -21,28 +21,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup MSYS2 environment
+      - name: Setup MSYS2 environment (UCRT64)
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: UCRT64
           update: true
           install: >-
             git
             curl
             unzip
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-make
-            mingw-w64-x86_64-codeblocks
-            mingw-w64-x86_64-wxwidgets3.2-msw
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-make
+            mingw-w64-ucrt-x86_64-codeblocks
+            mingw-w64-ucrt-x86_64-wxwidgets3.3-msw
 
       - name: Install pedeps tool
         run: |
-          # Fetch the latest pedeps release version and extract it to MinGW64 bin directory
+          # Fetch the latest pedeps release version and extract it to UCRT64 bin directory
           LATEST_VERSION=$(curl -s https://api.github.com/repos/brechtsanders/pedeps/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
           echo "Latest pedeps version: ${LATEST_VERSION}"
           curl -sL "https://github.com/brechtsanders/pedeps/releases/download/${LATEST_VERSION}/pedeps-${LATEST_VERSION}-win64.zip" -o pedeps.zip
           unzip -q pedeps.zip -d /tmp/pedeps
-          cp /tmp/pedeps/bin/* /mingw64/bin/
+          cp /tmp/pedeps/bin/* /ucrt64/bin/
           rm -rf pedeps.zip /tmp/pedeps
 
       - name: Build Code::Blocks Project
@@ -71,5 +71,5 @@ jobs:
       - name: Archive Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: image-label-gui-win64
+          name: image-label-gui-win64-ucrt
           path: dist/
