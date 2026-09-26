@@ -55,6 +55,16 @@ jobs:
           cat << 'EOF' > "$CB_CONFIG_DIR/default.conf"
           <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
           <codeblocks_config file_version="1.0" app_version="1.0">
+            <app>
+              <environment>
+                <!-- Skip compiler auto-detection dialog on first startup -->
+                <auto_detect_compilers>
+                  <bool>
+                    <![CDATA[0]]>
+                  </bool>
+                </auto_detect_compilers>
+              </environment>
+            </app>
             <compiler>
               <sets>
                 <gcc>
@@ -73,6 +83,36 @@ jobs:
                       <![CDATA[C:\msys64\ucrt64\bin;]]>
                     </str>
                   </EXTRA_PATHS>
+                  <C_COMPILER>
+                    <str>
+                      <![CDATA[gcc.exe]]>
+                    </str>
+                  </C_COMPILER>
+                  <CPP_COMPILER>
+                    <str>
+                      <![CDATA[g++.exe]]>
+                    </str>
+                  </CPP_COMPILER>
+                  <LINKER>
+                    <str>
+                      <![CDATA[g++.exe]]>
+                    </str>
+                  </LINKER>
+                  <LIB_LINKER>
+                    <str>
+                      <![CDATA[ar.exe]]>
+                    </str>
+                  </LIB_LINKER>
+                  <RES_COMPILER>
+                    <str>
+                      <![CDATA[windres.exe]]>
+                    </str>
+                  </RES_COMPILER>
+                  <MAKE>
+                    <str>
+                      <![CDATA[mingw32-make.exe]]>
+                    </str>
+                  </MAKE>
                 </gcc>
               </sets>
             </compiler>
