@@ -45,6 +45,40 @@ jobs:
           cp /tmp/pedeps/bin/* /ucrt64/bin/
           rm -rf pedeps.zip /tmp/pedeps
 
+      - name: Configure Code::Blocks Compiler Path
+        run: |
+          # Create Code::Blocks config directory in AppData
+          CB_CONFIG_DIR="$APPDATA/codeblocks"
+          mkdir -p "$CB_CONFIG_DIR"
+
+          # Write minimal default.conf pointing GNU GCC Compiler to UCRT64 paths
+          cat << 'EOF' > "$CB_CONFIG_DIR/default.conf"
+          <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+          <codeblocks_config file_version="1.0" app_version="1.0">
+            <compiler>
+              <sets>
+                <gcc>
+                  <NAME>
+                    <str>
+                      <![CDATA[GNU GCC Compiler]]>
+                    </str>
+                  </NAME>
+                  <MASTER_PATH>
+                    <str>
+                      <![CDATA[C:\msys64\ucrt64]]>
+                    </str>
+                  </MASTER_PATH>
+                  <EXTRA_PATHS>
+                    <str>
+                      <![CDATA[C:\msys64\ucrt64\bin;]]>
+                    </str>
+                  </EXTRA_PATHS>
+                </gcc>
+              </sets>
+            </compiler>
+          </codeblocks_config>
+          EOF
+
       - name: Build Code::Blocks Project
         run: |
           # Quietly build the Code::Blocks project in CLI mode
