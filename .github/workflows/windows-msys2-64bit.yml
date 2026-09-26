@@ -45,73 +45,55 @@ jobs:
           cp /tmp/pedeps/bin/* /ucrt64/bin/
           rm -rf pedeps.zip /tmp/pedeps
 
-      - name: Configure Code::Blocks Compiler Path
+      - name: Configure Code::Blocks Compiler Path (Absolute Windows Path)
         run: |
-          # Create Code::Blocks config directory in AppData
-          CB_CONFIG_DIR="$APPDATA/codeblocks"
+          # Absolute path in GitHub Actions runner: C:/Users/runneradmin/AppData/Roaming/codeblocks
+          CB_CONFIG_DIR="C:/Users/runneradmin/AppData/Roaming/codeblocks"
           mkdir -p "$CB_CONFIG_DIR"
 
-          # Write minimal default.conf pointing GNU GCC Compiler to UCRT64 paths
+          # Write a complete default.conf that completely disables first-run wizard and compiler selection dialogs
           cat << 'EOF' > "$CB_CONFIG_DIR/default.conf"
           <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
           <codeblocks_config file_version="1.0" app_version="1.0">
             <app>
               <environment>
-                <!-- Skip compiler auto-detection dialog on first startup -->
                 <auto_detect_compilers>
-                  <bool>
-                    <![CDATA[0]]>
-                  </bool>
+                  <bool><![CDATA[0]]></bool>
                 </auto_detect_compilers>
               </environment>
             </app>
             <compiler>
+              <default_compiler>
+                <str><![CDATA[gcc]]></str>
+              </default_compiler>
               <sets>
                 <gcc>
                   <NAME>
-                    <str>
-                      <![CDATA[GNU GCC Compiler]]>
-                    </str>
+                    <str><![CDATA[GNU GCC Compiler]]></str>
                   </NAME>
                   <MASTER_PATH>
-                    <str>
-                      <![CDATA[C:\msys64\ucrt64]]>
-                    </str>
+                    <str><![CDATA[C:\msys64\ucrt64]]></str>
                   </MASTER_PATH>
                   <EXTRA_PATHS>
-                    <str>
-                      <![CDATA[C:\msys64\ucrt64\bin;]]>
-                    </str>
+                    <str><![CDATA[C:\msys64\ucrt64\bin;]]></str>
                   </EXTRA_PATHS>
                   <C_COMPILER>
-                    <str>
-                      <![CDATA[gcc.exe]]>
-                    </str>
+                    <str><![CDATA[gcc.exe]]></str>
                   </C_COMPILER>
                   <CPP_COMPILER>
-                    <str>
-                      <![CDATA[g++.exe]]>
-                    </str>
+                    <str><![CDATA[g++.exe]]></str>
                   </CPP_COMPILER>
                   <LINKER>
-                    <str>
-                      <![CDATA[g++.exe]]>
-                    </str>
+                    <str><![CDATA[g++.exe]]></str>
                   </LINKER>
                   <LIB_LINKER>
-                    <str>
-                      <![CDATA[ar.exe]]>
-                    </str>
+                    <str><![CDATA[ar.exe]]></str>
                   </LIB_LINKER>
                   <RES_COMPILER>
-                    <str>
-                      <![CDATA[windres.exe]]>
-                    </str>
+                    <str><![CDATA[windres.exe]]></str>
                   </RES_COMPILER>
                   <MAKE>
-                    <str>
-                      <![CDATA[mingw32-make.exe]]>
-                    </str>
+                    <str><![CDATA[mingw32-make.exe]]></str>
                   </MAKE>
                 </gcc>
               </sets>
