@@ -101,15 +101,22 @@ jobs:
           </codeblocks_config>
           EOF
 
-      - name: Build Code::Blocks Project
+      - name: Build Code::Blocks Project (Workaround for Headless Windows)
         run: |
-          # Quietly build the Code::Blocks project in CLI mode
-          codeblocks --no-splash-screen --no-associative --no-dde --target="Release" --build image-label-gui.cbp
+          # 1. 使用 start /wait 避开无头 CI 的 IO 阻塞
+          cmd.exe /c "start /wait codeblocks.exe --no-splash-screen --no-dde --target=Release --build image-label-gui.cbp"
+
+          # 2. 检查编译产出是否成功生成
+          EXE_PATH=$(find . -name "*.exe" | head -n 1)
+          if [ -z "$EXE_PATH" ]; then
+            echo "Error: Code::Blocks failed to produce executable!"
+            exit 1
+          fi
 
       - name: Collect Executable and DLL Dependencies using pedeps
         run: |
           mkdir -p dist
-          
+
           # Find the compiled executable file
           EXE_PATH=$(find . -name "*.exe" | head -n 1)
           if [ -z "$EXE_PATH" ]; then
