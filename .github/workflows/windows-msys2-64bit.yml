@@ -47,7 +47,7 @@ jobs:
 
       - name: Configure Code::Blocks Global Variables (WX_CONFIG)
         run: |
-          # Inject Global Compiler Variable #WX_CONFIG -> wx-config into default.conf
+          # Map #WX_CONFIG -> wx-config so cbp2make can resolve $(#WX_CONFIG)
           CB_CONFIG_DIR="C:/Users/runneradmin/AppData/Roaming/codeblocks"
           mkdir -p "$CB_CONFIG_DIR"
 
@@ -59,29 +59,63 @@ jobs:
                 <str><![CDATA[wx-config]]></str>
               </WX_CONFIG>
             </macros>
+            <compiler>
+              <default_compiler>
+                <str><![CDATA[gcc]]></str>
+              </default_compiler>
+              <sets>
+                <gcc>
+                  <NAME>
+                    <str><![CDATA[GNU GCC Compiler]]></str>
+                  </NAME>
+                  <MASTER_PATH>
+                    <str><![CDATA[C:\msys64\ucrt64]]></str>
+                  </MASTER_PATH>
+                  <EXTRA_PATHS>
+                    <str><![CDATA[C:\msys64\ucrt64\bin;]]></str>
+                  </EXTRA_PATHS>
+                  <C_COMPILER>
+                    <str><![CDATA[gcc.exe]]></str>
+                  </C_COMPILER>
+                  <CPP_COMPILER>
+                    <str><![CDATA[g++.exe]]></str>
+                  </CPP_COMPILER>
+                  <LINKER>
+                    <str><![CDATA[g++.exe]]></str>
+                  </LINKER>
+                  <LIB_LINKER>
+                    <str><![CDATA[ar.exe]]></str>
+                  </LIB_LINKER>
+                  <RES_COMPILER>
+                    <str><![CDATA[windres.exe]]></str>
+                  </RES_COMPILER>
+                  <MAKE>
+                    <str><![CDATA[mingw32-make.exe]]></str>
+                  </MAKE>
+                </gcc>
+              </sets>
+            </compiler>
           </codeblocks_config>
           EOF
 
-      - name: Build Project with cbp2make & make (Release Only)
+      - name: Build Code::Blocks Project (Release Only)
         run: |
-          # 1. 明确指定转换 Release Target (区分大小写)
-          cbp2make -in ImageLabelGui.cbp -out Makefile -targets Release -config "C:/Users/runneradmin/AppData/Roaming/codeblocks/default.conf"
+          # 1. Single invocation: load configuration and generate Makefile
+          cbp2make -in ImageLabelGui.cbp -out Makefile -config "C:/Users/runneradmin/AppData/Roaming/codeblocks/default.conf"
 
-          # 2. 检查 Makefile 是否成功生成
-          if [ ! -f "Makefile" ]; then
-            echo "Error: Makefile generation failed!"
-            exit 1
-          fi
-
-          # 3. 仅编译 Release 目标
-          mingw32-make -f Makefile Release
+          # 2. Build Release target exclusively
+          mingw32-make -f Makefile release_target || mingw32-make -f Makefile Release || mingw32-make -f Makefile release
 
       - name: Collect Executable and DLL Dependencies using pedeps
         run: |
           mkdir -p dist
 
-          # Find the compiled executable file
-          EXE_PATH=$(find . -name "*.exe" | head -n 1)
+          # Locate the compiled release executable
+          EXE_PATH=$(find . -name "*.exe" | grep -i "release" | head -n 1)
+          if [ -z "$EXE_PATH" ]; then
+            EXE_PATH=$(find . -name "*.exe" | head -n 1)
+          fi
+
           if [ -z "$EXE_PATH" ]; then
             echo "Error: Executable file not found!"
             exit 1
@@ -90,7 +124,7 @@ jobs:
           echo "Found executable at: $EXE_PATH"
           cp "$EXE_PATH" dist/
 
-          # Recursively copy all dependent DLLs using copypedeps; -X ignores system DLLs
+          # Recursively copy dependent DLLs ignoring system DLLs
           EXE_NAME=$(basename "$EXE_PATH")
           copypedeps -X dist/"$EXE_NAME" dist/
 
