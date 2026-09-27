@@ -64,8 +64,8 @@ jobs:
 
       - name: Build Project with cbp2make & make (Release Only)
         run: |
-          # 1. 指定只转换 release Target，并应用 WX_CONFIG 全局变量
-          cbp2make -in ImageLabelGui.cbp -out Makefile -targets release -config "C:/Users/runneradmin/AppData/Roaming/codeblocks/default.conf"
+          # 1. 明确指定转换 Release Target (区分大小写)
+          cbp2make -in ImageLabelGui.cbp -out Makefile -targets Release -config "C:/Users/runneradmin/AppData/Roaming/codeblocks/default.conf"
 
           # 2. 检查 Makefile 是否成功生成
           if [ ! -f "Makefile" ]; then
@@ -73,8 +73,8 @@ jobs:
             exit 1
           fi
 
-          # 3. 仅编译 release 目标
-          mingw32-make -f Makefile release
+          # 3. 仅编译 Release 目标
+          mingw32-make -f Makefile Release
 
       - name: Collect Executable and DLL Dependencies using pedeps
         run: |
