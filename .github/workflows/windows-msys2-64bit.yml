@@ -47,11 +47,17 @@ jobs:
 
       - name: Build Project with cbp2make & make
         run: |
-          # 1. Convert .cbp project to a standard Makefile
-          cbp2make -in image-label-gui.cbp -out Makefile -targets "Release"
+          # 1. Convert ImageLabelGui.cbp to Makefile
+          cbp2make -in ImageLabelGui.cbp -out Makefile
 
-          # 2. Build the project using mingw32-make with parallel jobs
-          mingw32-make -f Makefile Release
+          # 2. Check if Makefile was successfully created
+          if [ ! -f "Makefile" ]; then
+            echo "Error: Makefile generation failed!"
+            exit 1
+          fi
+
+          # 3. Build using mingw32-make
+          mingw32-make -f Makefile Release || mingw32-make -f Makefile
 
       - name: Collect Executable and DLL Dependencies using pedeps
         run: |
