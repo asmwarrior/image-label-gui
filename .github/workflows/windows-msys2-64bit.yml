@@ -38,7 +38,7 @@ jobs:
             mingw-w64-ucrt-x86_64-codeblocks
             mingw-w64-ucrt-x86_64-wxwidgets3.3-msw
 
-      # 2. 在 MSYS2 下构建并安装 wx-config-msys2 (生成器用 Unix Makefiles)
+      # 2. 在 MSYS2 下构建并安装 wx-config-msys2
       - name: Build and Install wx-config-msys2
         run: |
           git clone https://github.com/eranif/wx-config-msys2.git /tmp/wx-config-msys2
@@ -57,69 +57,16 @@ jobs:
           cp /tmp/pedeps/bin/* /ucrt64/bin/
           rm -rf pedeps.zip /tmp/pedeps
 
-      # 4. 配置 Code::Blocks 全局配置 default.conf (Linux 风格 HEREDOC，不需要转义)
-      - name: Configure Code::Blocks Global Variables
-        run: |
-          CB_CONFIG_DIR="$HOME/AppData/Roaming/codeblocks"
-          mkdir -p "$CB_CONFIG_DIR"
-
-          cat << 'EOF' > "$CB_CONFIG_DIR/default.conf"
-          <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-          <codeblocks_config file_version="1.0" app_version="1.0">
-            <macros>
-              <WX_CONFIG>
-                <str><![CDATA[wx-config-msys2 --prefix=C:/msys64/ucrt64]]></str>
-              </WX_CONFIG>
-            </macros>
-            <compiler>
-              <default_compiler>
-                <str><![CDATA[gcc]]></str>
-              </default_compiler>
-              <sets>
-                <gcc>
-                  <NAME>
-                    <str><![CDATA[GNU GCC Compiler]]></str>
-                  </NAME>
-                  <MASTER_PATH>
-                    <str><![CDATA[C:\msys64\ucrt64]]></str>
-                  </MASTER_PATH>
-                  <EXTRA_PATHS>
-                    <str><![CDATA[C:\msys64\ucrt64\bin;]]></str>
-                  </EXTRA_PATHS>
-                  <C_COMPILER>
-                    <str><![CDATA[gcc.exe]]></str>
-                  </C_COMPILER>
-                  <CPP_COMPILER>
-                    <str><![CDATA[g++.exe]]></str>
-                  </CPP_COMPILER>
-                  <LINKER>
-                    <str><![CDATA[g++.exe]]></str>
-                  </LINKER>
-                  <LIB_LINKER>
-                    <str><![CDATA[ar.exe]]></str>
-                  </LIB_LINKER>
-                  <RES_COMPILER>
-                    <str><![CDATA[windres.exe]]></str>
-                  </RES_COMPILER>
-                  <MAKE>
-                    <str><![CDATA[make.exe]]></str>
-                  </MAKE>
-                </gcc>
-              </sets>
-            </compiler>
-          </codeblocks_config>
-          EOF
-
-      # 5. 生成 Makefile 并直接使用 make 编译
+      # 4. 生成 Makefile 并编译 Release
       - name: Build Project (Release)
         run: |
-          # cbp2make 会自动在 /ucrt64/bin 中找到
-          cbp2make -in ImageLabelGui.cbp -out Makefile -config "$HOME/AppData/Roaming/codeblocks/default.conf"
+          # 使用 -g 明确指定 WX_CONFIG 全局变量，避免配置文件读取失败
+          cbp2make -in ImageLabelGui.cbp -out Makefile -g WX_CONFIG="wx-config-msys2 --prefix=/ucrt64"
           
-          # 编译 Release target
+          # 执行编译
           make -f Makefile release
 
-      # 6. 打包 EXE 以及引用的 DLL (pedeps)
+      # 5. 打包 EXE 以及引用的动态链接库 (DLL)
       - name: Collect Executable and DLL Dependencies
         run: |
           mkdir -p dist
@@ -132,7 +79,7 @@ jobs:
           EXE_NAME=$(basename "$EXE_PATH")
           copypedeps -X dist/"$EXE_NAME" dist/
 
-      # 7. 上传 Artifact
+      # 6. 上传 Artifact 构建产物
       - name: Archive Build Artifacts
         uses: actions/upload-artifact@v4
         with:
