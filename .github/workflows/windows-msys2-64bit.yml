@@ -21,7 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. 初始化 UCRT64 环境并安装所需依赖 (包含 dos2unix 用于处理 Makefile)
+      # 1. 初始化 UCRT64 环境并安装所需依赖
       - name: Setup MSYS2 environment (UCRT64)
         uses: msys2/setup-msys2@v2
         with:
@@ -47,30 +47,33 @@ jobs:
           cp /tmp/pedeps/bin/* /ucrt64/bin/
           rm -rf pedeps.zip /tmp/pedeps
 
-      # 3. 生成 Makefile，打印内容并编译
+      # 3. 生成 Makefile、修复环境变量和命令后编译
       - name: Build Project (Release)
         run: |
-          # 1. 直接生成 Makefile
+          # 1. 生成 Makefile 并转换为 Unix 换行符
           cbp2make -in ImageLabelGui.cbp -out Makefile
-
-          # 2. 将 Makefile 转为 Unix 换行符
           dos2unix Makefile
 
-          # 3. 打印原始 Makefile 完整内容到 Log
-          echo "=================== ORIGINAL MAKEFILE ==================="
+          # 2. 修正 Makefile 中的变量与命令问题
+          # a) 在 Makefile 开头加上 WX_CONFIG = wx-config 的定义
+          sed -i '1i WX_CONFIG = wx-config' Makefile
+
+          # b) 替换所有引用 $(WX_CONFIG) 的反引号部分为正确的 shell 命令
+          sed -i -E 's/`\$\(WX_CONFIG\)[[:space:]]*--cflags`/`wx-config --cflags`/g' Makefile
+          sed -i -E 's/`\$\(WX_CONFIG\)[[:space:]]*--libs[[:space:]]*all`/`wx-config --libs all`/g' Makefile
+          sed -i -E 's/`\$\(WX_CONFIG\)[[:space:]]*--libs`/`wx-config --libs`/g' Makefile
+
+          # c) 将 Windows 风格的 cmd /c if not exist 替换为 Linux 兼容的 mkdir -p，避免 cmd 弹出无用日志及路径转义错乱
+          sed -i -E 's/cmd \/c if not exist ([^ ]+) md ([^ ]+)/mkdir -p \2/g' Makefile
+          sed -i -E 's/cmd \/c del \/f/rm -f/g' Makefile
+          sed -i -E 's/cmd \/c rd/rm -rf/g' Makefile
+
+          # 3. 打印修正后的 Makefile 内容供确认
+          echo "=================== FIXED MAKEFILE ==================="
           cat Makefile
-          echo "========================================================="
+          echo "======================================================="
 
-          # 4. 替换缺失的 wx-config 命令
-          sed -i -E 's/`[[:space:]]*--cflags`/`wx-config --cflags`/g' Makefile
-          sed -i -E 's/`[[:space:]]*--libs`/`wx-config --libs`/g' Makefile
-
-          # 5. 打印替换后的 Makefile 完整内容到 Log
-          echo "=================== MODIFIED MAKEFILE ==================="
-          cat Makefile
-          echo "========================================================="
-
-          # 6. 执行编译
+          # 4. 执行 Release 构建
           make -f Makefile release
 
       # 4. 打包 EXE 以及引用的动态链接库 (DLL)
