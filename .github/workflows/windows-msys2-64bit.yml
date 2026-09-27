@@ -1,4 +1,4 @@
-name: Build image-label-gui (MSYS2 UCRT64 & pedeps)
+name: Build image-label-gui (MSYS2 UCRT64 & wx-config-msys2)
 
 on:
   push:
@@ -30,10 +30,25 @@ jobs:
             git
             curl
             unzip
+            cmake
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-make
             mingw-w64-ucrt-x86_64-codeblocks
             mingw-w64-ucrt-x86_64-wxwidgets3.3-msw
+
+      - name: Build and Install wx-config-msys2
+        run: |
+          # 1. Clone wx-config-msys2 repository
+          git clone https://github.com/eranif/wx-config-msys2.git /tmp/wx-config-msys2
+
+          # 2. Build via CMake
+          mkdir -p /tmp/wx-config-msys2/build
+          cd /tmp/wx-config-msys2/build
+          cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+          mingw32-make
+
+          # 3. Copy binary into UCRT64 bin directory
+          cp wx-config-msys2.exe /ucrt64/bin/
 
       - name: Install pedeps tool
         run: |
@@ -45,9 +60,9 @@ jobs:
           cp /tmp/pedeps/bin/* /ucrt64/bin/
           rm -rf pedeps.zip /tmp/pedeps
 
-      - name: Configure Code::Blocks Global Variables (WX_CONFIG)
+      - name: Configure Code::Blocks Global Variables (WX_CONFIG with --prefix)
         run: |
-          # Map #WX_CONFIG -> wx-config so cbp2make can resolve $(#WX_CONFIG)
+          # Set WX_CONFIG to "wx-config-msys2 --prefix=C:/msys64/ucrt64"
           CB_CONFIG_DIR="C:/Users/runneradmin/AppData/Roaming/codeblocks"
           mkdir -p "$CB_CONFIG_DIR"
 
@@ -56,7 +71,7 @@ jobs:
           <codeblocks_config file_version="1.0" app_version="1.0">
             <macros>
               <WX_CONFIG>
-                <str><![CDATA[wx-config]]></str>
+                <str><![CDATA[wx-config-msys2 --prefix=C:/msys64/ucrt64]]></str>
               </WX_CONFIG>
             </macros>
             <compiler>
@@ -98,19 +113,19 @@ jobs:
           </codeblocks_config>
           EOF
 
-      - name: Build Code::Blocks Project (Release Only)
+      - name: Build Project (Release Only)
         run: |
-          # 1. Single invocation: load configuration and generate Makefile
+          # 1. Convert ImageLabelGui.cbp using default.conf
           cbp2make -in ImageLabelGui.cbp -out Makefile -config "C:/Users/runneradmin/AppData/Roaming/codeblocks/default.conf"
 
           # 2. Build Release target exclusively
-          mingw32-make -f Makefile release_target || mingw32-make -f Makefile Release || mingw32-make -f Makefile release
+          mingw32-make -f Makefile release
 
       - name: Collect Executable and DLL Dependencies using pedeps
         run: |
           mkdir -p dist
 
-          # Locate the compiled release executable
+          # Find compiled release executable
           EXE_PATH=$(find . -name "*.exe" | grep -i "release" | head -n 1)
           if [ -z "$EXE_PATH" ]; then
             EXE_PATH=$(find . -name "*.exe" | head -n 1)
@@ -124,7 +139,7 @@ jobs:
           echo "Found executable at: $EXE_PATH"
           cp "$EXE_PATH" dist/
 
-          # Recursively copy dependent DLLs ignoring system DLLs
+          # Recursively copy dependent DLLs
           EXE_NAME=$(basename "$EXE_PATH")
           copypedeps -X dist/"$EXE_NAME" dist/
 
