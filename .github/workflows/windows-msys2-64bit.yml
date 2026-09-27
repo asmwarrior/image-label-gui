@@ -39,14 +39,22 @@ jobs:
 
       # 2. 编译并安装 wx-config-msys2
       - name: Build and Install wx-config-msys2
+        shell: cmd
         run: |
+          :: 1. 设置环境变量
           set PATH=C:\msys64\ucrt64\bin;C:\msys64\usr\bin;%PATH%
+
+          :: 2. 克隆仓库
           git clone https://github.com/eranif/wx-config-msys2.git C:\tmp\wx-config-msys2
+
+          :: 3. 配置并编译 (将安装路径直接设置为 C:/msys64/ucrt64)
           mkdir C:\tmp\wx-config-msys2\build
           cd /d C:\tmp\wx-config-msys2\build
-          cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+          cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=C:/msys64/ucrt64
           mingw32-make
-          copy wx-config-msys2.exe C:\msys64\ucrt64\bin\
+
+          :: 4. 使用 cmake 自动安装到 C:\msys64\ucrt64\bin 目录
+          cmake --install .
 
       # 3. 安装 pedeps
       - name: Install pedeps
