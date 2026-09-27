@@ -88,10 +88,8 @@ jobs:
           # 2. 复制编译出来的 exe 到 dist 目录
           cp bin/Release/ImageLabelGui.exe dist/
 
-          # 3. 进入 dist 目录执行 copypedeps，提取所有依赖到 dist 内部
-          cd dist
-          copypedeps -s /ucrt64/bin ImageLabelGui.exe
-          cd ..
+          # 3. 正确调用 copypedeps：第1个位置参数是输出目录(dist)，第2个是源EXE
+          copypedeps -s /ucrt64/bin dist bin/Release/ImageLabelGui.exe
 
           # 4. 打印最终 dist 目录，验证所有 DLL 均已完整收集
           echo "=================== DIST CONTENTS ==================="
