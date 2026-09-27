@@ -1,4 +1,4 @@
-name: Build image-label-gui (MSYS2 UCRT64 & wx-config-msys2)
+name: Build image-label-gui (Windows Cmd + MinGW)
 
 on:
   push:
@@ -13,14 +13,16 @@ jobs:
   build:
     runs-on: windows-latest
 
+    # 默认全部步骤使用 CMD 运行
     defaults:
       run:
-        shell: msys2 {0}
+        shell: cmd
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 1. 依然使用 setup-msys2 安装工具链，最省心
       - name: Setup MSYS2 environment (UCRT64)
         uses: msys2/setup-msys2@v2
         with:
@@ -30,116 +32,88 @@ jobs:
             git
             curl
             unzip
-            cmake
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-make
             mingw-w64-ucrt-x86_64-codeblocks
             mingw-w64-ucrt-x86_64-wxwidgets3.3-msw
 
+      # 2. 编译并安装 wx-config-msys2
       - name: Build and Install wx-config-msys2
         run: |
-          # 1. Clone wx-config-msys2 repository
-          git clone https://github.com/eranif/wx-config-msys2.git /tmp/wx-config-msys2
-
-          # 2. Build via CMake
-          mkdir -p /tmp/wx-config-msys2/build
-          cd /tmp/wx-config-msys2/build
+          set PATH=C:\msys64\ucrt64\bin;C:\msys64\usr\bin;%PATH%
+          git clone https://github.com/eranif/wx-config-msys2.git C:\tmp\wx-config-msys2
+          mkdir C:\tmp\wx-config-msys2\build
+          cd /d C:\tmp\wx-config-msys2\build
           cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
           mingw32-make
+          copy wx-config-msys2.exe C:\msys64\ucrt64\bin\
 
-          # 3. Copy binary into UCRT64 bin directory
-          cp wx-config-msys2.exe /ucrt64/bin/
-
-      - name: Install pedeps tool
+      # 3. 安装 pedeps
+      - name: Install pedeps
+        shell: msys2 {0}
         run: |
-          # Fetch the latest pedeps release version and extract it to UCRT64 bin directory
           LATEST_VERSION=$(curl -s https://api.github.com/repos/brechtsanders/pedeps/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-          echo "Latest pedeps version: ${LATEST_VERSION}"
           curl -sL "https://github.com/brechtsanders/pedeps/releases/download/${LATEST_VERSION}/pedeps-${LATEST_VERSION}-win64.zip" -o pedeps.zip
           unzip -q pedeps.zip -d /tmp/pedeps
           cp /tmp/pedeps/bin/* /ucrt64/bin/
           rm -rf pedeps.zip /tmp/pedeps
 
-      - name: Configure Code::Blocks Global Variables (WX_CONFIG with --prefix)
+      # 4. 配置 Code::Blocks 全局配置 (default.conf)
+      - name: Configure Code::Blocks Global Variables
         run: |
-          # Set WX_CONFIG to "wx-config-msys2 --prefix=C:/msys64/ucrt64"
-          CB_CONFIG_DIR="C:/Users/runneradmin/AppData/Roaming/codeblocks"
-          mkdir -p "$CB_CONFIG_DIR"
+          if not exist "C:\Users\runneradmin\AppData\Roaming\codeblocks" mkdir "C:\Users\runneradmin\AppData\Roaming\codeblocks"
+          
+          (
+            echo ^<?xml version="1.0" encoding="UTF-8" standalone="yes" ?^>
+            echo ^<codeblocks_config file_version="1.0" app_version="1.0"^>
+            echo   ^<macros^>
+            echo     ^<WX_CONFIG^>
+            echo       ^<str^>^<![CDATA[wx-config-msys2 --prefix=C:/msys64/ucrt64]]^>^</str^>
+            echo     ^</WX_CONFIG^>
+            echo   ^</macros^>
+            echo   ^<compiler^>
+            echo     ^<default_compiler^>
+            echo       ^<str^>^<![CDATA[gcc]]^>^</str^>
+            echo     ^</default_compiler^>
+            echo     ^<sets^>
+            echo       ^<gcc^>
+            echo         ^<NAME^>^<str^>^<![CDATA[GNU GCC Compiler]]^>^</str^>^</NAME^>
+            echo         ^<MASTER_PATH^>^<str^>^<![CDATA[C:\msys64\ucrt64]]^>^</str^>^</MASTER_PATH^>
+            echo         ^<EXTRA_PATHS^>^<str^>^<![CDATA[C:\msys64\ucrt64\bin;]]^>^</str^>^</EXTRA_PATHS^>
+            echo         ^<C_COMPILER^>^<str^>^<![CDATA[gcc.exe]]^>^</str^>^</C_COMPILER^>
+            echo         ^<CPP_COMPILER^>^<str^>^<![CDATA[g++.exe]]^>^</str^>^</CPP_COMPILER^>
+            echo         ^<LINKER^>^<str^>^<![CDATA[g++.exe]]^>^</str^>^</LINKER^>
+            echo         ^<LIB_LINKER^>^<str^>^<![CDATA[ar.exe]]^>^</str^>^</LIB_LINKER^>
+            echo         ^<RES_COMPILER^>^<str^>^<![CDATA[windres.exe]]^>^</str^>^</RES_COMPILER^>
+            echo         ^<MAKE^>^<str^>^<![CDATA[mingw32-make.exe]]^>^</str^>^</MAKE^>
+            echo       ^</gcc^>
+            echo     ^</sets^>
+            echo   ^</compiler^>
+            echo ^</codeblocks_config^>
+          ) > "C:\Users\runneradmin\AppData\Roaming\codeblocks\default.conf"
 
-          cat << 'EOF' > "$CB_CONFIG_DIR/default.conf"
-          <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-          <codeblocks_config file_version="1.0" app_version="1.0">
-            <macros>
-              <WX_CONFIG>
-                <str><![CDATA[wx-config-msys2 --prefix=C:/msys64/ucrt64]]></str>
-              </WX_CONFIG>
-            </macros>
-            <compiler>
-              <default_compiler>
-                <str><![CDATA[gcc]]></str>
-              </default_compiler>
-              <sets>
-                <gcc>
-                  <NAME>
-                    <str><![CDATA[GNU GCC Compiler]]></str>
-                  </NAME>
-                  <MASTER_PATH>
-                    <str><![CDATA[C:\msys64\ucrt64]]></str>
-                  </MASTER_PATH>
-                  <EXTRA_PATHS>
-                    <str><![CDATA[C:\msys64\ucrt64\bin;]]></str>
-                  </EXTRA_PATHS>
-                  <C_COMPILER>
-                    <str><![CDATA[gcc.exe]]></str>
-                  </C_COMPILER>
-                  <CPP_COMPILER>
-                    <str><![CDATA[g++.exe]]></str>
-                  </CPP_COMPILER>
-                  <LINKER>
-                    <str><![CDATA[g++.exe]]></str>
-                  </LINKER>
-                  <LIB_LINKER>
-                    <str><![CDATA[ar.exe]]></str>
-                  </LIB_LINKER>
-                  <RES_COMPILER>
-                    <str><![CDATA[windres.exe]]></str>
-                  </RES_COMPILER>
-                  <MAKE>
-                    <str><![CDATA[mingw32-make.exe]]></str>
-                  </MAKE>
-                </gcc>
-              </sets>
-            </compiler>
-          </codeblocks_config>
-          EOF
-
-      - name: Build Project (Release Only)
+      # 5. 全程在 CMD 下生成 Makefile 并用 mingw32-make 编译 Release
+      - name: Build Project (Release)
         run: |
-          # 1. Convert ImageLabelGui.cbp using default.conf
-          cbp2make -in ImageLabelGui.cbp -out Makefile -config "C:/Users/runneradmin/AppData/Roaming/codeblocks/default.conf"
-
-          # 2. Build Release target exclusively
+          set PATH=C:\msys64\ucrt64\bin;C:\msys64\usr\bin;%PATH%
+          
+          :: 生成 Makefile
+          cbp2make -in ImageLabelGui.cbp -out Makefile -config "C:\Users\runneradmin\AppData\Roaming\codeblocks\default.conf"
+          
+          :: 使用 mingw32-make 编译 release
           mingw32-make -f Makefile release
 
-      - name: Collect Executable and DLL Dependencies using pedeps
+      # 6. 打包依赖项 ( pedeps )
+      - name: Collect Executable and DLL Dependencies
+        shell: msys2 {0}
         run: |
           mkdir -p dist
-
-          # Find compiled release executable
           EXE_PATH=$(find . -name "*.exe" | grep -i "release" | head -n 1)
           if [ -z "$EXE_PATH" ]; then
             EXE_PATH=$(find . -name "*.exe" | head -n 1)
           fi
-
-          if [ -z "$EXE_PATH" ]; then
-            echo "Error: Executable file not found!"
-            exit 1
-          fi
-
           echo "Found executable at: $EXE_PATH"
           cp "$EXE_PATH" dist/
-
-          # Recursively copy dependent DLLs
           EXE_NAME=$(basename "$EXE_PATH")
           copypedeps -X dist/"$EXE_NAME" dist/
 
