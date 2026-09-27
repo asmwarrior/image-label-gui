@@ -22,7 +22,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. 依然使用 setup-msys2 安装工具链，最省心
+      # 1. 使用 setup-msys2 安装 UCRT64 工具链
       - name: Setup MSYS2 environment (UCRT64)
         uses: msys2/setup-msys2@v2
         with:
@@ -37,23 +37,25 @@ jobs:
             mingw-w64-ucrt-x86_64-codeblocks
             mingw-w64-ucrt-x86_64-wxwidgets3.3-msw
 
+      # 1.5. 方案1：将 UCRT64 工具链永久加入 GitHub Actions 全局 PATH
+      - name: Add UCRT64 toolchain to GITHUB_PATH
+        run: |
+          echo C:\msys64\ucrt64\bin>> %GITHUB_PATH%
+          echo C:\msys64\usr\bin>> %GITHUB_PATH%
+
       # 2. 编译并安装 wx-config-msys2
       - name: Build and Install wx-config-msys2
-        shell: cmd
         run: |
-          :: 1. 设置环境变量
-          set PATH=C:\msys64\ucrt64\bin;C:\msys64\usr\bin;%PATH%
-
-          :: 2. 克隆仓库
+          :: 1. 克隆仓库
           git clone https://github.com/eranif/wx-config-msys2.git C:\tmp\wx-config-msys2
 
-          :: 3. 配置并编译 (将安装路径直接设置为 C:/msys64/ucrt64)
+          :: 2. 配置并编译 (将安装路径直接设置为 C:/msys64/ucrt64)
           mkdir C:\tmp\wx-config-msys2\build
           cd /d C:\tmp\wx-config-msys2\build
           cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=C:/msys64/ucrt64
           mingw32-make
 
-          :: 4. 使用 cmake 自动安装到 C:\msys64\ucrt64\bin 目录
+          :: 3. 使用 cmake 自动安装到 C:\msys64\ucrt64\bin 目录
           cmake --install .
 
       # 3. 安装 pedeps
@@ -100,11 +102,9 @@ jobs:
             echo ^</codeblocks_config^>
           ) > "C:\Users\runneradmin\AppData\Roaming\codeblocks\default.conf"
 
-      # 5. 全程在 CMD 下生成 Makefile 并用 mingw32-make 编译 Release
+      # 5. 生成 Makefile 并用 mingw32-make 编译 Release
       - name: Build Project (Release)
         run: |
-          set PATH=C:\msys64\ucrt64\bin;C:\msys64\usr\bin;%PATH%
-          
           :: 生成 Makefile
           cbp2make -in ImageLabelGui.cbp -out Makefile -config "C:\Users\runneradmin\AppData\Roaming\codeblocks\default.conf"
           
