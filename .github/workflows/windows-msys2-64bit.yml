@@ -45,19 +45,36 @@ jobs:
           cp /tmp/pedeps/bin/* /ucrt64/bin/
           rm -rf pedeps.zip /tmp/pedeps
 
-      - name: Build Project with cbp2make & make
+      - name: Configure Code::Blocks Global Variables (WX_CONFIG)
         run: |
-          # 1. Convert ImageLabelGui.cbp to Makefile
-          cbp2make -in ImageLabelGui.cbp -out Makefile
+          # Inject Global Compiler Variable #WX_CONFIG -> wx-config into default.conf
+          CB_CONFIG_DIR="C:/Users/runneradmin/AppData/Roaming/codeblocks"
+          mkdir -p "$CB_CONFIG_DIR"
 
-          # 2. Check if Makefile was successfully created
+          cat << 'EOF' > "$CB_CONFIG_DIR/default.conf"
+          <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+          <codeblocks_config file_version="1.0" app_version="1.0">
+            <macros>
+              <WX_CONFIG>
+                <str><![CDATA[wx-config]]></str>
+              </WX_CONFIG>
+            </macros>
+          </codeblocks_config>
+          EOF
+
+      - name: Build Project with cbp2make & make (Release Only)
+        run: |
+          # 1. 指定只转换 release Target，并应用 WX_CONFIG 全局变量
+          cbp2make -in ImageLabelGui.cbp -out Makefile -targets release -config "C:/Users/runneradmin/AppData/Roaming/codeblocks/default.conf"
+
+          # 2. 检查 Makefile 是否成功生成
           if [ ! -f "Makefile" ]; then
             echo "Error: Makefile generation failed!"
             exit 1
           fi
 
-          # 3. Build using mingw32-make
-          mingw32-make -f Makefile Release || mingw32-make -f Makefile
+          # 3. 仅编译 release 目标
+          mingw32-make -f Makefile release
 
       - name: Collect Executable and DLL Dependencies using pedeps
         run: |
