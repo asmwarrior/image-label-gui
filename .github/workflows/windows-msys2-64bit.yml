@@ -79,19 +79,21 @@ jobs:
           # 4. 执行 Release 构建
           make -f Makefile release
 
-      # 4. 收集 EXE 与 DLL 依赖
+      # 4. 收集 EXE 与 DLL 依赖 (严格参照 codeblocks 最佳实践)
       - name: Collect Executable and DLL Dependencies
         run: |
           # 1. 创建发布目录
           mkdir -p dist
 
-          # 2. 复制编译出来的 exe 到 dist 目录
+          # 2. 将编译好的 exe 复制到 dist 目录
           cp bin/Release/ImageLabelGui.exe dist/
 
-          # 3. 正确调用 copypedeps：第1个位置参数是输出目录(dist)，第2个是源EXE
-          copypedeps -s /ucrt64/bin dist bin/Release/ImageLabelGui.exe
+          # 3. 调用 copypedeps，使用 -r (递归) -n (不覆盖已有文件) -v (详细输出)
+          # 参数 1 (源文件)：dist/ImageLabelGui.exe
+          # 参数 2 (目标目录)：dist/
+          copypedeps -r -n -v dist/ImageLabelGui.exe dist/
 
-          # 4. 打印最终 dist 目录，验证所有 DLL 均已完整收集
+          # 4. 打印最终 dist 目录内容
           echo "=================== DIST CONTENTS ==================="
           ls -lh dist/
           echo "====================================================="
