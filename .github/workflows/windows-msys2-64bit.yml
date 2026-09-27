@@ -84,24 +84,15 @@ jobs:
         run: |
           mkdir -p dist
 
-          # 明确优先查找 bin/Release/ 下的 exe
-          if [ -f "bin/Release/ImageLabelGui.exe" ]; then
-            EXE_PATH="bin/Release/ImageLabelGui.exe"
-          else
-            EXE_PATH=$(find . -maxdepth 3 -name "*.exe" | grep -i "release" | head -n 1)
-          fi
+          # 1. 先把编译出来的 exe 复制到 dist 目录
+          cp bin/Release/ImageLabelGui.exe dist/
 
-          echo "Found executable at: $EXE_PATH"
+          # 2. 让 copypedeps 分析原目录的 exe，把依赖的 DLL 提取并复制到 dist 目录
+          # (不要把 dist/ImageLabelGui.exe 作为输入和输出同名处理)
+          copypedeps bin/Release/ImageLabelGui.exe dist/
 
-          # 复制目标 exe 到 dist 目录
-          cp "$EXE_PATH" dist/
-          EXE_NAME=$(basename "$EXE_PATH")
-
-          # 验证复制后的文件大小，确保不为 0
-          ls -lh dist/"$EXE_NAME"
-
-          # 自动收集该 EXE 依赖的所有 DLL 到 dist 目录 (去掉错误的 -X 参数)
-          copypedeps dist/"$EXE_NAME" dist/
+          # 3. 验证 dist 目录下的 exe 大小
+          ls -lh dist/ImageLabelGui.exe
 
       # 5. 上传 Artifact 构建产物
       - name: Archive Build Artifacts
