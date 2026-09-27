@@ -45,73 +45,13 @@ jobs:
           cp /tmp/pedeps/bin/* /ucrt64/bin/
           rm -rf pedeps.zip /tmp/pedeps
 
-      - name: Configure Code::Blocks Compiler Path (Absolute Windows Path)
+      - name: Build Project with cbp2make & make
         run: |
-          # Absolute path in GitHub Actions runner: C:/Users/runneradmin/AppData/Roaming/codeblocks
-          CB_CONFIG_DIR="C:/Users/runneradmin/AppData/Roaming/codeblocks"
-          mkdir -p "$CB_CONFIG_DIR"
+          # 1. Convert .cbp project to a standard Makefile
+          cbp2make -in image-label-gui.cbp -out Makefile -targets "Release"
 
-          # Write a complete default.conf that completely disables first-run wizard and compiler selection dialogs
-          cat << 'EOF' > "$CB_CONFIG_DIR/default.conf"
-          <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-          <codeblocks_config file_version="1.0" app_version="1.0">
-            <app>
-              <environment>
-                <auto_detect_compilers>
-                  <bool><![CDATA[0]]></bool>
-                </auto_detect_compilers>
-              </environment>
-            </app>
-            <compiler>
-              <default_compiler>
-                <str><![CDATA[gcc]]></str>
-              </default_compiler>
-              <sets>
-                <gcc>
-                  <NAME>
-                    <str><![CDATA[GNU GCC Compiler]]></str>
-                  </NAME>
-                  <MASTER_PATH>
-                    <str><![CDATA[C:\msys64\ucrt64]]></str>
-                  </MASTER_PATH>
-                  <EXTRA_PATHS>
-                    <str><![CDATA[C:\msys64\ucrt64\bin;]]></str>
-                  </EXTRA_PATHS>
-                  <C_COMPILER>
-                    <str><![CDATA[gcc.exe]]></str>
-                  </C_COMPILER>
-                  <CPP_COMPILER>
-                    <str><![CDATA[g++.exe]]></str>
-                  </CPP_COMPILER>
-                  <LINKER>
-                    <str><![CDATA[g++.exe]]></str>
-                  </LINKER>
-                  <LIB_LINKER>
-                    <str><![CDATA[ar.exe]]></str>
-                  </LIB_LINKER>
-                  <RES_COMPILER>
-                    <str><![CDATA[windres.exe]]></str>
-                  </RES_COMPILER>
-                  <MAKE>
-                    <str><![CDATA[mingw32-make.exe]]></str>
-                  </MAKE>
-                </gcc>
-              </sets>
-            </compiler>
-          </codeblocks_config>
-          EOF
-
-      - name: Build Code::Blocks Project (Workaround for Headless Windows)
-        run: |
-          # 1. 使用 start /wait 避开无头 CI 的 IO 阻塞
-          cmd.exe /c "start /wait codeblocks.exe --no-splash-screen --no-dde --target=Release --build image-label-gui.cbp"
-
-          # 2. 检查编译产出是否成功生成
-          EXE_PATH=$(find . -name "*.exe" | head -n 1)
-          if [ -z "$EXE_PATH" ]; then
-            echo "Error: Code::Blocks failed to produce executable!"
-            exit 1
-          fi
+          # 2. Build the project using mingw32-make with parallel jobs
+          mingw32-make -f Makefile Release
 
       - name: Collect Executable and DLL Dependencies using pedeps
         run: |
@@ -123,7 +63,7 @@ jobs:
             echo "Error: Executable file not found!"
             exit 1
           fi
-          
+
           echo "Found executable at: $EXE_PATH"
           cp "$EXE_PATH" dist/
 
