@@ -55,15 +55,18 @@ jobs:
           dos2unix Makefile
 
           # 2. 修正 Makefile 中的变量与命令问题
-          # a) 在 Makefile 开头加上 WX_CONFIG = wx-config 的定义
           sed -i '1i WX_CONFIG = wx-config' Makefile
 
-          # b) 替换所有引用 $(WX_CONFIG) 的反引号部分为正确的 shell 命令
+          # a) C++ 编译与链接标志替换
           sed -i -E 's/`\$\(WX_CONFIG\)[[:space:]]*--cflags`/`wx-config --cflags`/g' Makefile
           sed -i -E 's/`\$\(WX_CONFIG\)[[:space:]]*--libs[[:space:]]*all`/`wx-config --libs all`/g' Makefile
           sed -i -E 's/`\$\(WX_CONFIG\)[[:space:]]*--libs`/`wx-config --libs`/g' Makefile
 
-          # c) 将 Windows 风格的 cmd /c if not exist 替换为 Linux 兼容的 mkdir -p，避免 cmd 弹出无用日志及路径转义错乱
+          # b) 为资源文件编译注入 `wx-config --rcflags`
+          # 替换 RESINC 变量或在 RESINC 赋值行加上 `wx-config --rcflags`
+          sed -i -E 's/^RESINC =/RESINC = `wx-config --rcflags`/g' Makefile
+
+          # c) 将 Windows 风格的 cmd 命令替换为标准的 POSIX 命令
           sed -i -E 's/cmd \/c if not exist ([^ ]+) md ([^ ]+)/mkdir -p \2/g' Makefile
           sed -i -E 's/cmd \/c del \/f/rm -f/g' Makefile
           sed -i -E 's/cmd \/c rd/rm -rf/g' Makefile
