@@ -79,18 +79,29 @@ jobs:
           # 4. 执行 Release 构建
           make -f Makefile release
 
-      # 4. 打包 EXE 以及引用的动态链接库 (DLL)
+      # 4. 收集 EXE 与 DLL 依赖
       - name: Collect Executable and DLL Dependencies
         run: |
           mkdir -p dist
-          EXE_PATH=$(find . -name "*.exe" | grep -i "release" | head -n 1)
-          if [ -z "$EXE_PATH" ]; then
-            EXE_PATH=$(find . -name "*.exe" | head -n 1)
+
+          # 明确优先查找 bin/Release/ 下的 exe
+          if [ -f "bin/Release/ImageLabelGui.exe" ]; then
+            EXE_PATH="bin/Release/ImageLabelGui.exe"
+          else
+            EXE_PATH=$(find . -maxdepth 3 -name "*.exe" | grep -i "release" | head -n 1)
           fi
+
           echo "Found executable at: $EXE_PATH"
+
+          # 复制目标 exe 到 dist 目录
           cp "$EXE_PATH" dist/
           EXE_NAME=$(basename "$EXE_PATH")
-          copypedeps -X dist/"$EXE_NAME" dist/
+
+          # 验证复制后的文件大小，确保不为 0
+          ls -lh dist/"$EXE_NAME"
+
+          # 自动收集该 EXE 依赖的所有 DLL 到 dist 目录 (去掉错误的 -X 参数)
+          copypedeps dist/"$EXE_NAME" dist/
 
       # 5. 上传 Artifact 构建产物
       - name: Archive Build Artifacts
