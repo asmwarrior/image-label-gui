@@ -21,7 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. 初始化 UCRT64 环境并安装所需依赖（其中已包含原生的 wx-config）
+      # 1. 初始化 UCRT64 环境并安装所需依赖 (包含 dos2unix 用于处理 Makefile)
       - name: Setup MSYS2 environment (UCRT64)
         uses: msys2/setup-msys2@v2
         with:
@@ -32,6 +32,7 @@ jobs:
             curl
             unzip
             make
+            dos2unix
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-codeblocks
@@ -46,47 +47,33 @@ jobs:
           cp /tmp/pedeps/bin/* /ucrt64/bin/
           rm -rf pedeps.zip /tmp/pedeps
 
-      # 3. 配置 Code::Blocks 的 global_variables (将 WX_CONFIG / wx 映射为系统的 wx-config)
-      - name: Configure Code::Blocks Global Variables
-        run: |
-          CONF_DIR="$HOME/AppData/Roaming/codeblocks"
-          mkdir -p "$CONF_DIR"
-
-          cat << 'EOF' > "$CONF_DIR/default.conf"
-          <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-          <codeblocks_config file_version="1.0" app_version="1.0">
-            <global_variables>
-              <builtin>
-                <WX_CONFIG>
-                  <basepath><str><![CDATA[wx-config]]></str></basepath>
-                  <str><![CDATA[wx-config]]></str>
-                </WX_CONFIG>
-                <wx>
-                  <basepath><str><![CDATA[/ucrt64]]></str></basepath>
-                  <include><str><![CDATA[/ucrt64/include/wx-3.3]]></str></include>
-                  <lib><str><![CDATA[/ucrt64/lib]]></str></lib>
-                </wx>
-              </builtin>
-            </global_variables>
-          </codeblocks_config>
-          EOF
-
-      # 4. 生成 Makefile 并编译 Release
+      # 3. 生成 Makefile，打印内容并编译
       - name: Build Project (Release)
         run: |
-          CONF_PATH="$HOME/AppData/Roaming/codeblocks/default.conf"
+          # 1. 直接生成 Makefile
+          cbp2make -in ImageLabelGui.cbp -out Makefile
 
-          # 1. 使用正确的配置文件生成 Makefile
-          cbp2make -in ImageLabelGui.cbp -out Makefile -config "$CONF_PATH"
+          # 2. 将 Makefile 转为 Unix 换行符
+          dos2unix Makefile
 
-          # 2. 如果 cbp2make 生成的 Makefile 中仍包含没替换的 ` --cflags`，用 sed 保险替换一次
-          sed -i 's/` --cflags`/`wx-config --cflags`/g' Makefile
-          sed -i 's/` --libs`/`wx-config --libs`/g' Makefile
+          # 3. 打印原始 Makefile 完整内容到 Log
+          echo "=================== ORIGINAL MAKEFILE ==================="
+          cat Makefile
+          echo "========================================================="
 
-          # 3. 编译 release
+          # 4. 替换缺失的 wx-config 命令
+          sed -i -E 's/`[[:space:]]*--cflags`/`wx-config --cflags`/g' Makefile
+          sed -i -E 's/`[[:space:]]*--libs`/`wx-config --libs`/g' Makefile
+
+          # 5. 打印替换后的 Makefile 完整内容到 Log
+          echo "=================== MODIFIED MAKEFILE ==================="
+          cat Makefile
+          echo "========================================================="
+
+          # 6. 执行编译
           make -f Makefile release
 
-      # 5. 打包 EXE 以及引用的动态链接库 (DLL)
+      # 4. 打包 EXE 以及引用的动态链接库 (DLL)
       - name: Collect Executable and DLL Dependencies
         run: |
           mkdir -p dist
@@ -99,7 +86,7 @@ jobs:
           EXE_NAME=$(basename "$EXE_PATH")
           copypedeps -X dist/"$EXE_NAME" dist/
 
-      # 6. 上传 Artifact 构建产物
+      # 5. 上传 Artifact 构建产物
       - name: Archive Build Artifacts
         uses: actions/upload-artifact@v4
         with:
