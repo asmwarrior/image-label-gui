@@ -62,9 +62,9 @@ jobs:
           sed -i -E 's/`\$\(WX_CONFIG\)[[:space:]]*--libs[[:space:]]*all`/`wx-config --libs all`/g' Makefile
           sed -i -E 's/`\$\(WX_CONFIG\)[[:space:]]*--libs`/`wx-config --libs`/g' Makefile
 
-          # b) 为资源文件编译注入 `wx-config --rcflags`
-          # 替换 RESINC 变量或在 RESINC 赋值行加上 `wx-config --rcflags`
-          sed -i -E 's/^RESINC =/RESINC = `wx-config --rcflags`/g' Makefile
+          # b) 修正 windres 编译命令，注入 `wx-config --rcflags`
+          sed -i -E 's/\$\(WINDRES\)(.*)\$\(INC_RELEASE\)/\$(WINDRES)\1\$(INC_RELEASE) `wx-config --rcflags`/g' Makefile
+          sed -i -E 's/\$\(WINDRES\)(.*)\$\(INC_DEBUG\)/\$(WINDRES)\1\$(INC_DEBUG) `wx-config --rcflags`/g' Makefile
 
           # c) 将 Windows 风格的 cmd 命令替换为标准的 POSIX 命令
           sed -i -E 's/cmd \/c if not exist ([^ ]+) md ([^ ]+)/mkdir -p \2/g' Makefile
