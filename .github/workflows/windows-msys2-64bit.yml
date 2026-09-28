@@ -100,7 +100,8 @@ jobs:
       # 5. 创建 ZIP
       - name: Create ZIP package
         run: |
-          TIMESTAMP=$(date '+%Y-%m-%dT%H-%M-%S')
+          # 使用北京时间（UTC+8）
+          TIMESTAMP=$(TZ=Asia/Shanghai date '+%Y-%m-%dT%H-%M-%S')
           ZIP_NAME="${TIMESTAMP}.zip"
 
           # 保存 ZIP 文件名，供后面的 Step 使用
@@ -116,18 +117,21 @@ jobs:
           echo "===================================================="
 
       # 6. 创建 GitHub Release 并上传 ZIP
+      # 使用 PowerShell，以便直接使用 Windows runner 自带的 gh CLI
       - name: Create GitHub Release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG_NAME="manual-${ZIP_NAME%.zip}"
-          RELEASE_TITLE="Build ${ZIP_NAME%.zip}"
+          $baseName = [System.IO.Path]::GetFileNameWithoutExtension($env:ZIP_NAME)
+          $tagName = "manual-$baseName"
+          $releaseTitle = "Build $baseName"
 
-          echo "Tag: ${TAG_NAME}"
-          echo "Release: ${RELEASE_TITLE}"
-          echo "Asset: ${ZIP_NAME}"
+          Write-Host "Tag: $tagName"
+          Write-Host "Release: $releaseTitle"
+          Write-Host "Asset: $env:ZIP_NAME"
 
-          gh release create "${TAG_NAME}" \
-            "${ZIP_NAME}" \
-            --title "${RELEASE_TITLE}" \
-            --notes "Manual build from commit ${GITHUB_SHA}"
+          gh release create $tagName `
+            $env:ZIP_NAME `
+            --title $releaseTitle `
+            --notes "Manual build from commit $env:GITHUB_SHA"
