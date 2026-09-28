@@ -1,13 +1,11 @@
 name: Build image-label-gui (Pure MSYS2 UCRT64)
 
 on:
-  # push:
-    # branches: [ "main", "master" ]
-    # tags:
-      # - 'v*'
-  # pull_request:
-    # branches: [ "main", "master" ]
   workflow_dispatch:
+
+# 允许 GitHub Actions 创建 Tag 和 Release
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -31,6 +29,7 @@ jobs:
             git
             curl
             unzip
+            zip
             make
             dos2unix
             mingw-w64-ucrt-x86_64-gcc
@@ -98,9 +97,37 @@ jobs:
           ls -lh dist/
           echo "====================================================="
 
-      # 5. 上传 Artifact 构建产物
-      - name: Archive Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: image-label-gui-win64-ucrt
-          path: dist/
+      # 5. 创建 ZIP
+      - name: Create ZIP package
+        run: |
+          TIMESTAMP=$(date '+%Y-%m-%dT%H-%M-%S')
+          ZIP_NAME="${TIMESTAMP}.zip"
+
+          # 保存 ZIP 文件名，供后面的 Step 使用
+          echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
+
+          # 打包 dist 目录
+          cd dist
+          zip -r "../${ZIP_NAME}" .
+          cd ..
+
+          echo "=================== ZIP PACKAGE ==================="
+          ls -lh "${ZIP_NAME}"
+          echo "===================================================="
+
+      # 6. 创建 GitHub Release 并上传 ZIP
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG_NAME="manual-${ZIP_NAME%.zip}"
+          RELEASE_TITLE="Build ${ZIP_NAME%.zip}"
+
+          echo "Tag: ${TAG_NAME}"
+          echo "Release: ${RELEASE_TITLE}"
+          echo "Asset: ${ZIP_NAME}"
+
+          gh release create "${TAG_NAME}" \
+            "${ZIP_NAME}" \
+            --title "${RELEASE_TITLE}" \
+            --notes "Manual build from commit ${GITHUB_SHA}"
