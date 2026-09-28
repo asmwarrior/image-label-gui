@@ -3,7 +3,7 @@ name: Build image-label-gui (Pure MSYS2 UCRT64)
 on:
   workflow_dispatch:
 
-# 允许 GitHub Actions 创建 Tag 和 Release
+# Allow GitHub Actions to create Tags and Releases
 permissions:
   contents: write
 
@@ -19,7 +19,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. 初始化 UCRT64 环境并安装所需依赖
+      # 1. Initialize the MSYS2 UCRT64 environment and install required dependencies
       - name: Setup MSYS2 environment (UCRT64)
         uses: msys2/setup-msys2@v2
         with:
@@ -37,7 +37,7 @@ jobs:
             mingw-w64-ucrt-x86_64-codeblocks
             mingw-w64-ucrt-x86_64-wxwidgets3.3-msw
 
-      # 2. 安装 pedeps 工具
+      # 2. Install the pedeps tool
       - name: Install pedeps
         run: |
           LATEST_VERSION=$(curl -s https://api.github.com/repos/brechtsanders/pedeps/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
@@ -46,66 +46,69 @@ jobs:
           cp /tmp/pedeps/bin/* /ucrt64/bin/
           rm -rf pedeps.zip /tmp/pedeps
 
-      # 3. 生成 Makefile、修复环境变量和命令后编译
+      # 3. Generate the Makefile, fix environment variables and commands, then build
       - name: Build Project (Release)
         run: |
-          # 1. 生成 Makefile 并转换为 Unix 换行符
+          # 1. Generate the Makefile and convert it to Unix line endings
           cbp2make -in ImageLabelGui.cbp -out Makefile
           dos2unix Makefile
 
-          # 2. 修正 Makefile 中的变量与命令问题
+          # 2. Fix variables and commands in the Makefile
           sed -i '1i WX_CONFIG = wx-config' Makefile
 
-          # a) C++ 编译与链接标志替换
+          # a) Replace C++ compilation and linking flags
           sed -i -E 's/`\$\(WX_CONFIG\)[[:space:]]*--cflags`/`wx-config --cflags`/g' Makefile
           sed -i -E 's/`\$\(WX_CONFIG\)[[:space:]]*--libs[[:space:]]*all`/`wx-config --libs all`/g' Makefile
           sed -i -E 's/`\$\(WX_CONFIG\)[[:space:]]*--libs`/`wx-config --libs`/g' Makefile
 
-          # b) 修正 windres 编译命令，注入 `wx-config --cflags` 解决资源文件查找问题
+          # b) Fix windres commands by injecting `wx-config --cflags`
+          #    to resolve resource file include paths
           sed -i -E 's/\$\(WINDRES\)(.*)\$\(INC_RELEASE\)/\$(WINDRES)\1\$(INC_RELEASE) `wx-config --cflags`/g' Makefile
           sed -i -E 's/\$\(WINDRES\)(.*)\$\(INC_DEBUG\)/\$(WINDRES)\1\$(INC_DEBUG) `wx-config --cflags`/g' Makefile
 
-          # c) 将 Windows 风格的 cmd 命令替换为标准的 POSIX 命令
+          # c) Replace Windows-style cmd commands with standard POSIX commands
           sed -i -E 's/cmd \/c if not exist ([^ ]+) md ([^ ]+)/mkdir -p \2/g' Makefile
           sed -i -E 's/cmd \/c del \/f/rm -f/g' Makefile
           sed -i -E 's/cmd \/c rd/rm -rf/g' Makefile
 
-          # 3. 打印修正后的 Makefile 内容供确认
+          # 3. Print the fixed Makefile for verification
           echo "=================== FIXED MAKEFILE ==================="
           cat Makefile
           echo "======================================================="
 
-          # 4. 执行 Release 构建
+          # 4. Perform the Release build
           make -f Makefile release
 
-      # 4. 收集 EXE 与 DLL 依赖 (严格参照 codeblocks 最佳实践)
+      # 4. Collect the executable and DLL dependencies
+      #    following Code::Blocks best practices
       - name: Collect Executable and DLL Dependencies
         run: |
-          # 1. 创建发布目录
+          # 1. Create the distribution directory
           mkdir -p dist
 
-          # 2. 将编译好的 exe 复制到 dist 目录
+          # 2. Copy the built executable to the distribution directory
           cp bin/Release/ImageLabelGui.exe dist/
 
-          # 3. 调用 copypedeps，使用 -r (递归) -n (不覆盖已有文件) -v (详细输出)
-          # 参数 1 (源文件)：dist/ImageLabelGui.exe
-          # 参数 2 (目标目录)：dist/
+          # 3. Run copypedeps with -r (recursive), -n (do not overwrite),
+          #    and -v (verbose) options
+          #    Argument 1 (source file): dist/ImageLabelGui.exe
+          #    Argument 2 (destination directory): dist/
           copypedeps -r -n -v dist/ImageLabelGui.exe dist/
 
-          # 4. 打印最终 dist 目录内容
+          # 4. Print the final contents of the distribution directory
           echo "=================== DIST CONTENTS ==================="
           ls -lh dist/
           echo "====================================================="
 
-      # 5. 创建 ZIP
+      # 5. Create the ZIP package
       - name: Create ZIP package
         run: |
           ZIP_NAME="image-label-gui-win64-ucrt.zip"
 
-          # 保存 ZIP 文件名，供后面的 Step 使用
+          # Save the ZIP filename for use by later steps
           echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
 
-          # 打包 dist 目录
+          # Package the contents of the dist directory
           cd dist
           zip -r "../${ZIP_NAME}" .
           cd ..
@@ -114,7 +117,7 @@ jobs:
           ls -lh "${ZIP_NAME}"
           echo "===================================================="
 
-      # 6. 创建 GitHub Release 并上传 ZIP
+      # 6. Create a GitHub Release and upload the ZIP package
       - name: Create GitHub Release
         shell: pwsh
         env:
