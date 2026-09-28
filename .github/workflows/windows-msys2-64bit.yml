@@ -100,9 +100,7 @@ jobs:
       # 5. 创建 ZIP
       - name: Create ZIP package
         run: |
-          # 使用北京时间（UTC+8）
-          TIMESTAMP=$(TZ=Asia/Shanghai date '+%Y-%m-%dT%H-%M-%S')
-          ZIP_NAME="${TIMESTAMP}.zip"
+          ZIP_NAME="image-label-gui-win64-ucrt.zip"
 
           # 保存 ZIP 文件名，供后面的 Step 使用
           echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
@@ -117,15 +115,16 @@ jobs:
           echo "===================================================="
 
       # 6. 创建 GitHub Release 并上传 ZIP
-      # 使用 PowerShell，以便直接使用 Windows runner 自带的 gh CLI
       - name: Create GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $baseName = [System.IO.Path]::GetFileNameWithoutExtension($env:ZIP_NAME)
-          $tagName = "manual-$baseName"
-          $releaseTitle = "Build $baseName"
+          $timestamp = [DateTime]::UtcNow.AddHours(8).ToString("yyyy-MM-dd HH:mm:ss")
+          $tagTimestamp = [DateTime]::UtcNow.AddHours(8).ToString("yyyy-MM-ddTHH-mm-ss")
+
+          $tagName = "manual-$tagTimestamp"
+          $releaseTitle = "Build $timestamp (UTC+08:00)"
 
           Write-Host "Tag: $tagName"
           Write-Host "Release: $releaseTitle"
