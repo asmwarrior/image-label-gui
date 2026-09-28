@@ -26,6 +26,8 @@
 
 #include "ImageLabelLayer.h"  // custom label shape for wxMathPlot
 
+#include "ImageRegion.h"  // custom rectangular region shape for wxMathPlot
+
 //helper functions
 enum wxbuildinfoformat
 {
@@ -94,6 +96,7 @@ static wxRealPoint ClampToImage(double x, double y)
 const wxWindowID ImageLabelGuiFrame::ID_BUTTON1 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_CHECKBOX1 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_CHECKBOX2 = wxNewId();
+const wxWindowID ImageLabelGuiFrame::ID_CHECKBOX3 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_BUTTON2 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_PANEL1 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_TEXTCTRL1 = wxNewId();
@@ -136,6 +139,9 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
     m_CheckBoxDrawLabel = new wxCheckBox(Panel1, ID_CHECKBOX2, _("Draw label"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX2"));
     m_CheckBoxDrawLabel->SetValue(false);
     BoxSizer1->Add(m_CheckBoxDrawLabel, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    m_CheckBoxDrawRegion = new wxCheckBox(Panel1, ID_CHECKBOX3, _("Draw region"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX3"));
+    m_CheckBoxDrawRegion->SetValue(false);
+    BoxSizer1->Add(m_CheckBoxDrawRegion, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     m_ButtonGenerateLatexCode = new wxButton(Panel1, ID_BUTTON2, _("Generate latex code"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON2"));
     BoxSizer1->Add(m_ButtonGenerateLatexCode, 0, wxALL|wxEXPAND, 5);
     ButtonImportLatexCode = new wxButton(Panel1, wxID_ANY, _("Import latex code"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator);
@@ -166,6 +172,7 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
     Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ImageLabelGuiFrame::OnButtonLoadImageClick, this, ID_BUTTON1);
     Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &ImageLabelGuiFrame::OnCheckBoxDrawArrowClick, this, ID_CHECKBOX1);
     Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &ImageLabelGuiFrame::OnCheckBoxDrawLabelClick, this, ID_CHECKBOX2);
+    Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &ImageLabelGuiFrame::OnCheckBoxDrawRegionClick, this, ID_CHECKBOX3);
     Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick, this, ID_BUTTON2);
     ButtonImportLatexCode->Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ImageLabelGuiFrame::OnButtonImportLatexCodeClick, this);
     Bind(wxEVT_COMMAND_MENU_SELECTED, &ImageLabelGuiFrame::OnQuit, this, idMenuQuit);
@@ -221,6 +228,7 @@ void ImageLabelGuiFrame::OnCheckBoxDrawArrowClick(wxCommandEvent& event)
     {
         // mpWindow has a single user mouse action callback, so only one drawing mode can be active
         m_CheckBoxDrawLabel->SetValue(false);
+        m_CheckBoxDrawRegion->SetValue(false);
 
         m_MathPlot->SetOnUserMouseAction([this](void* Sender, wxMouseEvent & event, bool & cancel)
         {
@@ -606,8 +614,10 @@ void ImageLabelGuiFrame::CleanPlot(void)
         auto layer = m_MathPlot->GetLayer(i);
         mpArrow* arrowLayer = dynamic_cast<mpArrow*>(layer);
         mpLabel* labelLayer = dynamic_cast<mpLabel*>(layer);
+        mpRegion* regionLayer = dynamic_cast<mpRegion*>(layer);
         if ((arrowLayer && arrowLayer->GetName() == "Arrow") ||
-            (labelLayer && labelLayer->GetName() == "Label"))
+            (labelLayer && labelLayer->GetName() == "Label") ||
+            (regionLayer && regionLayer->GetName() == "Region"))
         {
             m_MathPlot->DelLayer(layer, true);
         }
@@ -665,6 +675,15 @@ void ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick(wxCommandEvent& event)
             const wxRealPoint position = labelLayer->GetPosition();
             textStream << wxString::Format("    \\draw[coordinate label = {%s at (%.2f,%.2f)}];\n",
                                            EscapeLatex(labelLayer->GetText()), position.x, position.y);
+        }
+        else if (mpRegion* regionLayer = dynamic_cast<mpRegion*>(layer))
+        {
+            // A region is a rectangle with a text below it. It uses the user defined
+            // "region label" key of the tikz-imagelabels package
+            textStream << wxString::Format("    \\draw[region label = {%s at %.2f,%.2f to %.2f,%.2f}];\n",
+                                           EscapeLatex(regionLayer->GetText()),
+                                           regionLayer->GetLeft(), regionLayer->GetBottom(),
+                                           regionLayer->GetRight(), regionLayer->GetTop());
         }
     }
 
@@ -765,6 +784,39 @@ static bool ParseLatexLine(const wxString& line, mpWindow* plotWindow)
         wxRealPoint position = ClampToImage(x, y);
         mpLabel* label = new mpLabel(position, UnescapeLatex(text));
         plotWindow->AddLayer(label, true);
+        return true;
+    }
+
+    // Region label: \draw[region label = {text at SW_x,SW_y to NE_x,NE_y}];
+    if(content.StartsWith("region label"))
+    {
+        wxString arg = ExtractBetween(content, "= {", "}");
+        if(arg.IsEmpty())
+            return false;
+
+        // arg format: "text at SW_x,SW_y to NE_x,NE_y"
+        const int atPos = arg.Find(" at ");
+        const int toPos = arg.Find(" to ");
+        if(atPos == wxNOT_FOUND || toPos == wxNOT_FOUND || toPos < atPos)
+            return false;
+
+        wxString text = arg.Mid(0, atPos);
+        text.Trim(true).Trim(false);
+
+        const wxString firstCornerStr = arg.Mid(atPos + 4, toPos - (atPos + 4));
+        const wxString secondCornerStr = arg.Mid(toPos + 4);
+
+        double firstX = 0.0, firstY = 0.0;
+        double secondX = 0.0, secondY = 0.0;
+        if(!ParseCoordinatePair(firstCornerStr, firstX, firstY))
+            return false;
+        if(!ParseCoordinatePair(secondCornerStr, secondX, secondY))
+            return false;
+
+        mpRegion* region = new mpRegion(ClampToImage(firstX, firstY),
+                                        ClampToImage(secondX, secondY),
+                                        UnescapeLatex(text));
+        plotWindow->AddLayer(region, true);
         return true;
     }
 
@@ -884,8 +936,10 @@ void ImageLabelGuiFrame::OnButtonImportLatexCodeClick(wxCommandEvent& event)
         auto layer = m_MathPlot->GetLayer(i);
         mpArrow* arrowLayer = dynamic_cast<mpArrow*>(layer);
         mpLabel* labelLayer = dynamic_cast<mpLabel*>(layer);
+        mpRegion* regionLayer = dynamic_cast<mpRegion*>(layer);
         if((arrowLayer && arrowLayer->GetName() == "Arrow") ||
-           (labelLayer && labelLayer->GetName() == "Label"))
+           (labelLayer && labelLayer->GetName() == "Label") ||
+           (regionLayer && regionLayer->GetName() == "Region"))
         {
             m_MathPlot->DelLayer(layer, true);
         }
@@ -964,6 +1018,7 @@ void ImageLabelGuiFrame::OnCheckBoxDrawLabelClick(wxCommandEvent& event)
     {
         // mpWindow has a single user mouse action callback, so only one drawing mode can be active
         m_CheckBoxDrawArrow->SetValue(false);
+        m_CheckBoxDrawRegion->SetValue(false);
 
         m_MathPlot->SetOnUserMouseAction([this](void* Sender, wxMouseEvent & event, bool & cancel)
         {
@@ -1124,4 +1179,305 @@ mpLabel* ImageLabelGuiFrame::FindClosestLabelLayer(mpWindow* plotWindow, const w
 
     // Return the closest label layer if it is close enough to the mouse
     return (minDistance < 10.0) ? closestLabel : nullptr;
+}
+
+void ImageLabelGuiFrame::OnUserMouseActionDrawRegion(void* Sender, wxMouseEvent& event, bool& cancel)
+{
+    static wxOverlay overlay;
+    static wxPoint startPointScreen;   // Screen position where the left button was pressed
+    static wxPoint currentPointScreen; // Current screen position while dragging
+    static bool isDrawingRegion = false;
+    static bool isModifyingRegion = false;
+    static bool isMoving = false;
+    static bool isResizing = false;
+    static int resizingCorner = -1; // 0 = bottom left, 1 = bottom right, 2 = top left, 3 = top right
+    static double grabGraphX = 0.0, grabGraphY = 0.0; // Graph coordinates where the right button was pressed
+    static double originalLeft = 0.0, originalRight = 0.0, originalBottom = 0.0, originalTop = 0.0;
+    static mpRegion* selectedRegion = nullptr;
+
+    const wxPoint mousePosition = event.GetPosition();
+    mpWindow* plotWindow = (mpWindow*)Sender; // Cast Sender to mpWindow
+
+    cancel = true;
+
+    // Left mouse button down: start drawing a new region
+    if(event.LeftDown() && !isModifyingRegion)
+    {
+        isDrawingRegion = true;
+        startPointScreen = mousePosition;
+    }
+    // Right mouse button down: start modifying an existing region
+    else if(event.RightDown())
+    {
+        // Attempt to find the closest region layer to the mouse position
+        selectedRegion = FindClosestRegionLayer(plotWindow, mousePosition);
+
+        if(selectedRegion)
+        {
+            originalLeft = selectedRegion->GetLeft();
+            originalRight = selectedRegion->GetRight();
+            originalBottom = selectedRegion->GetBottom();
+            originalTop = selectedRegion->GetTop();
+
+            grabGraphX = plotWindow->p2x(mousePosition.x);
+            grabGraphY = plotWindow->p2y(mousePosition.y);
+
+            // Screen positions of the four corners of the region
+            const wxPoint corners[4] =
+            {
+                wxPoint(plotWindow->x2p(originalLeft),  plotWindow->y2p(originalBottom)), // 0 bottom left
+                wxPoint(plotWindow->x2p(originalRight), plotWindow->y2p(originalBottom)), // 1 bottom right
+                wxPoint(plotWindow->x2p(originalLeft),  plotWindow->y2p(originalTop)),    // 2 top left
+                wxPoint(plotWindow->x2p(originalRight), plotWindow->y2p(originalTop))     // 3 top right
+            };
+
+            // Determine if the mouse is near one of the corners
+            resizingCorner = -1;
+            double minDistance = 10.0;
+            for(int i = 0; i < 4; i++)
+            {
+                const double distance = DistanceBetweenPoints(mousePosition, corners[i]);
+                if(distance < minDistance)
+                {
+                    minDistance = distance;
+                    resizingCorner = i;
+                }
+            }
+
+            if(resizingCorner >= 0)
+            {
+                isResizing = true;
+                isModifyingRegion = true;
+            }
+            else
+            {
+                // Otherwise the whole region is moved when the mouse is inside it
+                wxRect regionScreenRect(corners[2], corners[1]);
+                regionScreenRect.Inflate(5);
+                if(regionScreenRect.Contains(mousePosition))
+                {
+                    isMoving = true;
+                    isModifyingRegion = true;
+                }
+                else
+                {
+                    selectedRegion = nullptr;
+                }
+            }
+        }
+    }
+    // Left mouse button released: finalize a new region
+    else if(event.LeftUp() && isDrawingRegion)
+    {
+        isDrawingRegion = false;
+        overlay.Reset();
+
+        currentPointScreen = mousePosition;
+
+        const double startX = plotWindow->p2x(startPointScreen.x);
+        const double startY = plotWindow->p2y(startPointScreen.y);
+        const double endX = plotWindow->p2x(currentPointScreen.x);
+        const double endY = plotWindow->p2y(currentPointScreen.y);
+
+        const double minimumSizeThreshold = 0.02;
+
+        if(std::abs(endX - startX) < minimumSizeThreshold || std::abs(endY - startY) < minimumSizeThreshold)
+        {
+            // If the region is too small, skip creating it
+            wxMessageBox(
+                "The region is too small to be created. Please try again.",
+                "Region Too Small",
+                wxOK | wxICON_WARNING,
+                this
+            );
+            return;
+        }
+
+        // Open a text entry dialog to get the text of the region
+        wxTextEntryDialog textDialog(
+            this,
+            "Enter the text of the region:",
+            "Region Text",
+            "Region"
+        );
+
+        wxString text = "Region"; // Default text
+        if(textDialog.ShowModal() == wxID_OK)
+        {
+            text = textDialog.GetValue(); // Get the user-entered text
+        }
+
+        // Create and add a permanent region layer with the text
+        mpRegion* region = new mpRegion(ClampToImage(startX, startY),
+                                        ClampToImage(endX, endY),
+                                        text);
+        plotWindow->AddLayer(region, true);
+        plotWindow->Refresh();
+    }
+    // Mouse dragging with the left button: draw a new region
+    else if(event.Dragging() && event.LeftIsDown() && isDrawingRegion)
+    {
+        currentPointScreen = mousePosition;
+
+        // Draw the rectangle dynamically on the overlay
+        wxClientDC dc(plotWindow);
+        PrepareDC(dc);
+        wxDCOverlay dcOverlay(overlay, &dc);
+        dcOverlay.Clear();
+
+        dc.SetPen(wxPen(*wxBLACK, 2));
+        dc.SetBrush(*wxTRANSPARENT_BRUSH);
+
+        // Normalize the rectangle, the user may drag in any direction
+        const wxCoord rectLeft = wxMin(startPointScreen.x, currentPointScreen.x);
+        const wxCoord rectTop = wxMin(startPointScreen.y, currentPointScreen.y);
+        const wxCoord rectRight = wxMax(startPointScreen.x, currentPointScreen.x);
+        const wxCoord rectBottom = wxMax(startPointScreen.y, currentPointScreen.y);
+
+        dc.DrawRectangle(rectLeft, rectTop, rectRight - rectLeft, rectBottom - rectTop);
+    }
+    // Mouse dragging with the right button: move or resize the selected region
+    else if(event.Dragging() && event.RightIsDown() && isModifyingRegion && selectedRegion)
+    {
+        double left = originalLeft;
+        double right = originalRight;
+        double bottom = originalBottom;
+        double top = originalTop;
+
+        if(isResizing)
+        {
+            // The dragged corner follows the mouse, the opposite corner stays fixed
+            const wxRealPoint corner = ClampToImage(plotWindow->p2x(mousePosition.x),
+                                                    plotWindow->p2y(mousePosition.y));
+
+            switch(resizingCorner)
+            {
+                case 0: left = corner.x;  bottom = corner.y; break; // bottom left
+                case 1: right = corner.x; bottom = corner.y; break; // bottom right
+                case 2: left = corner.x;  top = corner.y;    break; // top left
+                default: right = corner.x; top = corner.y;   break; // top right
+            }
+        }
+        else if(isMoving)
+        {
+            // Move the whole region, but keep it inside the image
+            const double deltaX = plotWindow->p2x(mousePosition.x) - grabGraphX;
+            const double deltaY = plotWindow->p2y(mousePosition.y) - grabGraphY;
+
+            left = originalLeft + deltaX;
+            right = originalRight + deltaX;
+            bottom = originalBottom + deltaY;
+            top = originalTop + deltaY;
+
+            if(left < 0.0)
+            {
+                right -= left;
+                left = 0.0;
+            }
+            if(right > 1.0)
+            {
+                left -= right - 1.0;
+                right = 1.0;
+            }
+            if(bottom < 0.0)
+            {
+                top -= bottom;
+                bottom = 0.0;
+            }
+            if(top > 1.0)
+            {
+                bottom -= top - 1.0;
+                top = 1.0;
+            }
+        }
+
+        // The corners are normalized here, so dragging a corner across the opposite one just flips the region
+        selectedRegion->SetFirstCorner(wxRealPoint(wxMin(left, right), wxMin(bottom, top)));
+        selectedRegion->SetSecondCorner(wxRealPoint(wxMax(left, right), wxMax(bottom, top)));
+        plotWindow->Refresh();
+    }
+    // Right mouse button released: keep the new position of the region
+    else if(event.RightUp() && isModifyingRegion)
+    {
+        isModifyingRegion = false;
+        isMoving = false;
+        isResizing = false;
+        resizingCorner = -1;
+
+        if(selectedRegion)
+        {
+            plotWindow->Refresh();
+            selectedRegion = nullptr;
+        }
+    }
+    // Right mouse double-click: edit the text of the selected region
+    else if(event.RightDClick())
+    {
+        selectedRegion = FindClosestRegionLayer(plotWindow, mousePosition);
+
+        if(selectedRegion)
+        {
+            wxTextEntryDialog textDialog(plotWindow,
+                                         "Edit the text of the region:",
+                                         "Region Text Editor",
+                                         selectedRegion->GetText());
+
+            if(textDialog.ShowModal() == wxID_OK)
+            {
+                selectedRegion->SetText(textDialog.GetValue());
+                plotWindow->Refresh();
+            }
+        }
+
+        selectedRegion = nullptr;
+    }
+}
+
+mpRegion* ImageLabelGuiFrame::FindClosestRegionLayer(mpWindow* plotWindow, const wxPoint& mouseScreenPosition)
+{
+    mpRegion* closestRegion = nullptr;
+    double minDistance = std::numeric_limits<double>::max();
+
+    // Iterate over all layers to find the closest region
+    for(unsigned int i = 0; i < plotWindow->CountAllLayers(); i++)
+    {
+        auto layer = plotWindow->GetLayer(i);
+        mpRegion* regionLayer = dynamic_cast<mpRegion*>(layer);
+        if(regionLayer && regionLayer->GetName() == "Region")
+        {
+            const wxPoint topLeft(plotWindow->x2p(regionLayer->GetLeft()),
+                                  plotWindow->y2p(regionLayer->GetTop()));
+            const wxPoint bottomRight(plotWindow->x2p(regionLayer->GetRight()),
+                                      plotWindow->y2p(regionLayer->GetBottom()));
+
+            // The distance is measured in screen pixels, such that it does not depend on the zoom level
+            const double distance = DistanceToRectangle(mouseScreenPosition,
+                                                        wxRect(topLeft, bottomRight));
+            if(distance < minDistance)
+            {
+                minDistance = distance;
+                closestRegion = regionLayer;
+            }
+        }
+    }
+
+    // Return the closest region layer if it is close enough to the mouse
+    return (minDistance < 10.0) ? closestRegion : nullptr;
+}
+
+void ImageLabelGuiFrame::OnCheckBoxDrawRegionClick(wxCommandEvent& event)
+{
+    if(m_CheckBoxDrawRegion->GetValue())
+    {
+        // mpWindow has a single user mouse action callback, so only one drawing mode can be active
+        m_CheckBoxDrawArrow->SetValue(false);
+        m_CheckBoxDrawLabel->SetValue(false);
+
+        m_MathPlot->SetOnUserMouseAction([this](void* Sender, wxMouseEvent & event, bool & cancel)
+        {
+            OnUserMouseActionDrawRegion(Sender, event, cancel);
+        });
+    }
+    else
+        m_MathPlot->UnSetOnUserMouseAction();
 }

@@ -16,6 +16,7 @@
 
 class mpArrow;
 class mpLabel;
+class mpRegion;
 
 class ImageLabelGuiFrame: public wxFrame
 {
@@ -37,12 +38,14 @@ private:
     void OnButtonGenerateLatexCodeClick(wxCommandEvent& event);
     void OnCheckBoxDrawLabelClick(wxCommandEvent& event);
     void OnButtonImportLatexCodeClick(wxCommandEvent& event);
+    void OnCheckBoxDrawRegionClick(wxCommandEvent& event);
     //*)
 
     //(*Identifiers(ImageLabelGuiFrame)
     static const wxWindowID ID_BUTTON1;
     static const wxWindowID ID_CHECKBOX1;
     static const wxWindowID ID_CHECKBOX2;
+    static const wxWindowID ID_CHECKBOX3;
     static const wxWindowID ID_BUTTON2;
     static const wxWindowID ID_PANEL1;
     static const wxWindowID ID_TEXTCTRL1;
@@ -59,6 +62,7 @@ private:
     wxButton* m_ButtonLoadImage;
     wxCheckBox* m_CheckBoxDrawArrow;
     wxCheckBox* m_CheckBoxDrawLabel;
+    wxCheckBox* m_CheckBoxDrawRegion;
     wxPanel* Panel1;
     wxStatusBar* StatusBar1;
     wxTextCtrl* m_TextCtrlLog;
@@ -81,6 +85,8 @@ private:
     void OnUserMouseActionDrawLabel(void* Sender, wxMouseEvent& event, bool& cancel);
     mpLabel* FindClosestLabelLayer(mpWindow* plotWindow, const wxPoint& mouseScreenPosition);
     void AddLabelAtScreenPosition(mpWindow* plotWindow, const wxPoint& mouseScreenPosition);
+    void OnUserMouseActionDrawRegion(void* Sender, wxMouseEvent& event, bool& cancel);
+    mpRegion* FindClosestRegionLayer(mpWindow* plotWindow, const wxPoint& mouseScreenPosition);
 
 
 
