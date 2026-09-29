@@ -680,7 +680,7 @@ void ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick(wxCommandEvent& event)
         {
             // A region is a rectangle with a text below it. It uses the user defined
             // "region label" key of the tikz-imagelabels package
-            textStream << wxString::Format("    \\draw[region label = {%s at %.2f,%.2f to %.2f,%.2f}];\n",
+            textStream << wxString::Format("    \\draw[region label = {%s at (%.2f,%.2f) to (%.2f,%.2f)}];\n",
                                            EscapeLatex(regionLayer->GetText()),
                                            regionLayer->GetLeft(), regionLayer->GetBottom(),
                                            regionLayer->GetRight(), regionLayer->GetTop());
@@ -693,12 +693,20 @@ void ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick(wxCommandEvent& event)
     m_TextCtrlLog->SetValue(stringStream.GetString());
 }
 
-// Parse a comma-separated coordinate pair like "0.52,0.78" into (x,y).
-// Returns true on success.
+// Parse a coordinate pair like "(0.52,0.78)" or "0.52,0.78" into (x,y).
+// The surrounding parentheses are optional, so both the old and the new
+// LaTeX syntax can be read. Returns true on success.
 static bool ParseCoordinatePair(const wxString& text, double& x, double& y)
 {
     wxString trimmed = text;
     trimmed.Trim(true).Trim(false);
+
+    // Strip the optional surrounding parentheses, e.g. "(0.52,0.78)"
+    if(trimmed.StartsWith("(") && trimmed.EndsWith(")"))
+    {
+        trimmed = trimmed.Mid(1, trimmed.Length() - 2);
+        trimmed.Trim(true).Trim(false);
+    }
 
     int commaPos = trimmed.Find(',');
     if(commaPos == wxNOT_FOUND)
@@ -746,6 +754,7 @@ static wxString ExtractBetween(const wxString& text, const wxString& startMarker
 //   \\draw[annotation below = {LABEL at POS}] to (X,Y);
 //   \\draw[annotation above = {LABEL at POS}] to (X,Y);
 //   \\draw[coordinate label = {TEXT at (X,Y)}];
+//   \\draw[region label = {TEXT at (X1,Y1) to (X2,Y2)}];
 static bool ParseLatexLine(const wxString& line, mpWindow* plotWindow)
 {
     wxString trimmed = line;
@@ -787,14 +796,14 @@ static bool ParseLatexLine(const wxString& line, mpWindow* plotWindow)
         return true;
     }
 
-    // Region label: \draw[region label = {text at SW_x,SW_y to NE_x,NE_y}];
+    // Region label: \draw[region label = {text at (SW_x,SW_y) to (NE_x,NE_y)}];
     if(content.StartsWith("region label"))
     {
         wxString arg = ExtractBetween(content, "= {", "}");
         if(arg.IsEmpty())
             return false;
 
-        // arg format: "text at SW_x,SW_y to NE_x,NE_y"
+        // arg format: "text at (SW_x,SW_y) to (NE_x,NE_y)"
         const int atPos = arg.Find(" at ");
         const int toPos = arg.Find(" to ");
         if(atPos == wxNOT_FOUND || toPos == wxNOT_FOUND || toPos < atPos)

@@ -20,7 +20,7 @@ inline double DistanceToRectangle(const wxPoint& point, const wxRect& rect)
  * tikz-imagelabels package (a user defined extension, see the \imagelabelset
  * definition in the LaTeX preamble):
  *
- *     \draw[region label = {Text at 0.20,0.10 to 0.50,0.60}];
+ *     \draw[region label = {Text at (0.20,0.10) to (0.50,0.60)}];
  *
  * The two corners are stored in normalized image coordinates, i.e. (0,0) is the
  * bottom left corner and (1,1) is the top right corner of the loaded image.
