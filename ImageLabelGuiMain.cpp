@@ -7,6 +7,7 @@
 //*)
 
 #include <wx/dialog.h>   // wxDialog
+#include <wx/event.h>    // wxKeyEvent, wxEVT_CHAR_HOOK
 #include <wx/filedlg.h>  // wxFileDialog
 #include <wx/sizer.h>    // wxBoxSizer
 #include <wx/textdlg.h>  // wxTextentryDialog
@@ -178,6 +179,10 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
     Bind(wxEVT_COMMAND_MENU_SELECTED, &ImageLabelGuiFrame::OnQuit, this, idMenuQuit);
     Bind(wxEVT_COMMAND_MENU_SELECTED, &ImageLabelGuiFrame::OnAbout, this, idMenuAbout);
     //*)
+
+    // The Del key removes the annotation which was touched last. wxEVT_CHAR_HOOK
+    // is used because it is received no matter which child window has the focus.
+    Bind(wxEVT_CHAR_HOOK, &ImageLabelGuiFrame::OnCharHook, this);
 
     InitializePlot();
 
@@ -456,6 +461,9 @@ void ImageLabelGuiFrame::OnUserMouseActionDrawArrow(void* Sender, wxMouseEvent& 
             selectedArrow->SetEndPoint(wxRealPoint(endX, endY));
             plotWindow->Refresh();
 
+            // Remember the arrow, it can be removed again with the Del key
+            m_pLastTouchedLayer = selectedArrow;
+
             // Clear the selectedArrow reference
             selectedArrow = nullptr;
         }
@@ -486,6 +494,10 @@ void ImageLabelGuiFrame::OnUserMouseActionDrawArrow(void* Sender, wxMouseEvent& 
                 selectedArrow->SetLabel(newLabel.ToStdString());
                 plotWindow->Refresh(); // Refresh the plot to display the updated label
             }
+
+            // Remember the arrow, it can be removed again with the Del key
+            m_pLastTouchedLayer = selectedArrow;
+
             cancel = true;
         }
     }
@@ -626,6 +638,109 @@ void ImageLabelGuiFrame::CleanPlot(void)
             i++; // Only increment if the current layer was not removed
         }
     }
+
+    // The remembered annotation has just been removed as well
+    m_pLastTouchedLayer = nullptr;
+}
+
+// Helper: check whether the given layer is still part of the plot. The pointer
+// which was remembered by the last mouse action can be stale, for example when
+// a new image was loaded or when Latex code was imported in the meantime.
+static bool IsLayerInPlot(mpWindow* plotWindow, mpLayer* layer)
+{
+    for(unsigned int i = 0; i < plotWindow->CountAllLayers(); i++)
+    {
+        if(plotWindow->GetLayer(i) == layer)
+            return true;
+    }
+
+    return false;
+}
+
+void ImageLabelGuiFrame::OnCharHook(wxKeyEvent& event)
+{
+    const int keyCode = event.GetKeyCode();
+
+    if(keyCode == WXK_DELETE || keyCode == WXK_NUMPAD_DELETE)
+    {
+        // The log window is editable, so the Del key belongs to it while it has the focus
+        wxWindow* focusedWindow = wxWindow::FindFocus();
+        if(focusedWindow && dynamic_cast<wxTextCtrl*>(focusedWindow) != nullptr)
+        {
+            event.Skip();
+            return;
+        }
+
+        // While a modal dialog is shown the main frame is disabled, the Del key
+        // belongs to that dialog then
+        if(IsEnabled() && TryDeleteLastTouchedAnnotation())
+            return; // handled, the key must not reach the focused window
+    }
+
+    event.Skip();
+}
+
+bool ImageLabelGuiFrame::TryDeleteLastTouchedAnnotation(void)
+{
+    if(!m_pLastTouchedLayer)
+        return false;
+
+    // The annotation may already be gone, drop the stale pointer in that case
+    if(!IsLayerInPlot(m_MathPlot, m_pLastTouchedLayer))
+    {
+        m_pLastTouchedLayer = nullptr;
+        return false;
+    }
+
+    wxString typeName;
+    wxString text;
+
+    if(mpArrow* arrowLayer = dynamic_cast<mpArrow*>(m_pLastTouchedLayer))
+    {
+        typeName = "arrow";
+        text = arrowLayer->GetLabel();
+    }
+    else if(mpLabel* labelLayer = dynamic_cast<mpLabel*>(m_pLastTouchedLayer))
+    {
+        typeName = "label";
+        text = labelLayer->GetText();
+    }
+    else if(mpRegion* regionLayer = dynamic_cast<mpRegion*>(m_pLastTouchedLayer))
+    {
+        typeName = "region";
+        text = regionLayer->GetText();
+    }
+    else
+    {
+        // Not one of our own layers, nothing to delete
+        m_pLastTouchedLayer = nullptr;
+        return false;
+    }
+
+    wxString message;
+    if(text.IsEmpty())
+    {
+        message = wxString::Format("Do you want to delete the %s?", typeName);
+    }
+    else
+    {
+        message = wxString::Format("Do you want to delete the %s \"%s\"?", typeName, text);
+    }
+
+    const int answer = wxMessageBox(message,
+                                    "Delete annotation",
+                                    wxYES_NO | wxICON_QUESTION | wxNO_DEFAULT,
+                                    this);
+
+    // From here on the key is considered as handled, whatever the user has chosen
+    if(answer != wxYES)
+        return true;
+
+    m_MathPlot->DelLayer(m_pLastTouchedLayer, true);
+    m_pLastTouchedLayer = nullptr;
+    m_MathPlot->Refresh();
+
+    return true;
 }
 
 void ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick(wxCommandEvent& event)
@@ -958,6 +1073,9 @@ void ImageLabelGuiFrame::OnButtonImportLatexCodeClick(wxCommandEvent& event)
         }
     }
 
+    // The remembered annotation has just been removed as well
+    m_pLastTouchedLayer = nullptr;
+
     // Parse each line independently
     wxStringInputStream inputStream(latexCode);
     wxTextInputStream textStream(inputStream);
@@ -1091,6 +1209,10 @@ void ImageLabelGuiFrame::OnUserMouseActionDrawLabel(void* Sender, wxMouseEvent& 
         if(selectedLabel)
         {
             plotWindow->Refresh();
+
+            // Remember the label, it can be removed again with the Del key
+            m_pLastTouchedLayer = selectedLabel;
+
             selectedLabel = nullptr;
         }
     }
@@ -1130,6 +1252,9 @@ void ImageLabelGuiFrame::OnUserMouseActionDrawLabel(void* Sender, wxMouseEvent& 
                 selectedLabel->SetText(textDialog.GetValue());
                 plotWindow->Refresh();
             }
+
+            // Remember the label, it can be removed again with the Del key
+            m_pLastTouchedLayer = selectedLabel;
         }
 
         selectedLabel = nullptr;
@@ -1416,6 +1541,10 @@ void ImageLabelGuiFrame::OnUserMouseActionDrawRegion(void* Sender, wxMouseEvent&
         if(selectedRegion)
         {
             plotWindow->Refresh();
+
+            // Remember the region, it can be removed again with the Del key
+            m_pLastTouchedLayer = selectedRegion;
+
             selectedRegion = nullptr;
         }
     }
@@ -1436,6 +1565,9 @@ void ImageLabelGuiFrame::OnUserMouseActionDrawRegion(void* Sender, wxMouseEvent&
                 selectedRegion->SetText(textDialog.GetValue());
                 plotWindow->Refresh();
             }
+
+            // Remember the region, it can be removed again with the Del key
+            m_pLastTouchedLayer = selectedRegion;
         }
 
         selectedRegion = nullptr;

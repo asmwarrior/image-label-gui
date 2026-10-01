@@ -88,6 +88,12 @@ private:
     void OnUserMouseActionDrawRegion(void* Sender, wxMouseEvent& event, bool& cancel);
     mpRegion* FindClosestRegionLayer(mpWindow* plotWindow, const wxPoint& mouseScreenPosition);
 
+    // The annotation which the user has touched last. It is removed when the
+    // Del key is pressed, a confirmation dialog is shown before that.
+    mpLayer* m_pLastTouchedLayer = nullptr;
+    void OnCharHook(wxKeyEvent& event);
+    bool TryDeleteLastTouchedAnnotation(void);
+
 
 
     DECLARE_EVENT_TABLE()
