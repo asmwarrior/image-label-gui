@@ -153,6 +153,134 @@ And here is the result pdf build by the latex.
 
 ![result pdf image](image/result-pdf-image.png)
 
+# add the callout component support in the GUI tool, and here is the tex code and image shot:
+```
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{tikz-imagelabels}
+\usepackage{etoolbox}
+
+\usetikzlibrary{fit, calc, arrows.meta}
+
+\imagelabelset{
+  arrow distance = 0pt,
+  annotation font = \normalfont\small,
+}
+
+% -------------------------------------------------------------
+% Make annotationimage use only the original image as the
+% layout bounding box.
+% -------------------------------------------------------------
+\patchcmd{\endannotationimage}
+  {\end{scope} \end{tikzpicture}}
+  {\end{scope}%
+   \pgfresetboundingbox
+   \path (image.south west) rectangle (image.north east);%
+   \end{tikzpicture}}
+  {\typeout{tikz-imagelabels: bounding box patch applied}}
+  {\PackageError{tikz-imagelabels}{Bounding box patch failed}{}}
+
+% -------------------------------------------------------------
+% Define Callout Region styles.
+% -------------------------------------------------------------
+\tikzset{
+  callout box/.style = {
+    rounded corners = 2pt,
+    draw = black,
+    line width = 0.4pt,
+    preaction = {draw = white, line width = 1.6pt}
+  },
+  callout line/.style = {
+    draw = black,
+    line width = 0.4pt,
+    preaction = {draw = white, line width = 1.6pt}
+  }
+}
+
+% Define custom region callouts for four directions.
+\imagelabelset{
+  % Left-side callout: the label is placed to the left of the image.
+  region callout left/.style args = {#1 at #2 to (#3) to (#4)}{
+    insert path = {
+      node[callout box, fit={(#3) (#4)}, inner sep=0pt] (cBox) {}
+      (0, #2) ++(-\labeloutersep, 0) node[annotation node, anchor=east] (cText) {#1}
+      (cText.east) edge[callout line] (cBox.west)
+    }
+  },
+  % Right-side callout: the label is placed to the right of the image.
+  region callout right/.style args = {#1 at #2 to (#3) to (#4)}{
+    insert path = {
+      node[callout box, fit={(#3) (#4)}, inner sep=0pt] (cBox) {}
+      (1.0, #2) ++(\labeloutersep, 0) node[annotation node, anchor=west] (cText) {#1}
+      (cText.west) edge[callout line] (cBox.east)
+    }
+  },
+  % Top-side callout: the label is placed above the image.
+  region callout above/.style args = {#1 at #2 to (#3) to (#4)}{
+    insert path = {
+      node[callout box, fit={(#3) (#4)}, inner sep=0pt] (cBox) {}
+      (#2, 1.0) ++(0, \labeloutersep) node[annotation node, anchor=south] (cText) {#1\strut}
+      (cText.south) edge[callout line] (cBox.north)
+    }
+  },
+  % Bottom-side callout: the label is placed below the image.
+  region callout below/.style args = {#1 at #2 to (#3) to (#4)}{
+    insert path = {
+      node[callout box, fit={(#3) (#4)}, inner sep=0pt] (cBox) {}
+      (#2, 0) ++(0, -\labeloutersep) node[annotation node, anchor=north] (cText) {#1\strut}
+      (cText.north) edge[callout line] (cBox.south)
+    }
+  }
+}
+
+% -------------------------------------------------------------
+
+\begin{document}
+
+\begin{center}
+
+\begin{annotationimage}{width=0.8\linewidth}{example-image-a}
+
+\draw[region callout left={Callout 1 at 0.85 to (0.35,0.70) to (0.55,0.90)}];
+
+\draw[region callout right={Callout 2 at 0.50 to (0.35,0.35) to (0.75,0.60)}];
+
+\draw[region callout above={Callout 3 at 0.3 to (0.20,0.75) to (0.40,0.95)}];
+
+\draw[region callout below={Callout 4 at 0.7 to (0.60,0.05) to (0.80,0.25)}];
+
+  \draw[annotation left = {Annotation 1 at 0.90}]
+    to (0.04,0.86);
+
+  \draw[annotation left = {Annotation 2 at 0.79}]
+    to (0.06,0.83);
+
+  \draw[annotation left = {Annotation 3 at 0.73}]
+    to (0.06,0.81);
+
+  \draw[annotation above = {Annotation 4 at 0.13}]
+    to (0.11,0.98);
+
+  \draw[annotation above = {Annotation 5 at 0.56}]
+    to (0.27,0.89);
+
+  \draw[annotation left = {Annotation 6 at 0.42}]
+    to (0.1,0.4);
+    
+  \draw[coordinate label = {Label at (0.74,0.80)}];
+
+\end{annotationimage}
+
+\end{center}
+
+\end{document}
+```
+
+The result:
+
+![callout result](image/result-callout.png)
+
+
 # How to build this tool
 
 I use Code::Blocks as the IDE, MSYS2's MinGW64 gcc compiler and the wxWidgets 3.2 library for the GUI framework. You can just open the `ImageLabelGui.cbp` file inside the IDE, and press the "Build" button to build the project.
