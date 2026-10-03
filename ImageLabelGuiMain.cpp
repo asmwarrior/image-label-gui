@@ -29,6 +29,8 @@
 
 #include "ImageRegion.h"  // custom rectangular region shape for wxMathPlot
 
+#include "ImageCallout.h"  // custom region callout shape for wxMathPlot
+
 //helper functions
 enum wxbuildinfoformat
 {
@@ -93,6 +95,11 @@ static wxRealPoint ClampToImage(double x, double y)
     return wxRealPoint(wxMin(wxMax(x, 0.0), 1.0), wxMin(wxMax(y, 0.0), 1.0));
 }
 
+// Distance between the border of the image and the text of a callout, in
+// normalized image coordinates. It has to be small enough so that the text is
+// still visible inside the margin of the plot window.
+static const double CALLOUT_OUTSIDE_OFFSET = 0.08;
+
 //(*IdInit(ImageLabelGuiFrame)
 const wxWindowID ImageLabelGuiFrame::ID_BUTTON1 = wxNewId();
 const wxWindowID ImageLabelGuiFrame::ID_CHECKBOX1 = wxNewId();
@@ -143,6 +150,9 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
     m_CheckBoxDrawRegion = new wxCheckBox(Panel1, ID_CHECKBOX3, _("Draw region"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX3"));
     m_CheckBoxDrawRegion->SetValue(false);
     BoxSizer1->Add(m_CheckBoxDrawRegion, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    m_CheckBoxDrawCallout = new wxCheckBox(Panel1, wxID_ANY, _("Draw callout"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator);
+    m_CheckBoxDrawCallout->SetValue(false);
+    BoxSizer1->Add(m_CheckBoxDrawCallout, 0, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     m_ButtonGenerateLatexCode = new wxButton(Panel1, ID_BUTTON2, _("Generate latex code"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_BUTTON2"));
     BoxSizer1->Add(m_ButtonGenerateLatexCode, 0, wxALL|wxEXPAND, 5);
     ButtonImportLatexCode = new wxButton(Panel1, wxID_ANY, _("Import latex code"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator);
@@ -174,6 +184,7 @@ ImageLabelGuiFrame::ImageLabelGuiFrame(wxWindow* parent, wxWindowID id)
     Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &ImageLabelGuiFrame::OnCheckBoxDrawArrowClick, this, ID_CHECKBOX1);
     Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &ImageLabelGuiFrame::OnCheckBoxDrawLabelClick, this, ID_CHECKBOX2);
     Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &ImageLabelGuiFrame::OnCheckBoxDrawRegionClick, this, ID_CHECKBOX3);
+    m_CheckBoxDrawCallout->Bind(wxEVT_COMMAND_CHECKBOX_CLICKED, &ImageLabelGuiFrame::OnCheckBoxDrawCalloutClick, this);
     Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick, this, ID_BUTTON2);
     ButtonImportLatexCode->Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ImageLabelGuiFrame::OnButtonImportLatexCodeClick, this);
     Bind(wxEVT_COMMAND_MENU_SELECTED, &ImageLabelGuiFrame::OnQuit, this, idMenuQuit);
@@ -234,6 +245,7 @@ void ImageLabelGuiFrame::OnCheckBoxDrawArrowClick(wxCommandEvent& event)
         // mpWindow has a single user mouse action callback, so only one drawing mode can be active
         m_CheckBoxDrawLabel->SetValue(false);
         m_CheckBoxDrawRegion->SetValue(false);
+        m_CheckBoxDrawCallout->SetValue(false);
 
         m_MathPlot->SetOnUserMouseAction([this](void* Sender, wxMouseEvent & event, bool & cancel)
         {
@@ -627,9 +639,11 @@ void ImageLabelGuiFrame::CleanPlot(void)
         mpArrow* arrowLayer = dynamic_cast<mpArrow*>(layer);
         mpLabel* labelLayer = dynamic_cast<mpLabel*>(layer);
         mpRegion* regionLayer = dynamic_cast<mpRegion*>(layer);
+        mpRegionCallout* calloutLayer = dynamic_cast<mpRegionCallout*>(layer);
         if ((arrowLayer && arrowLayer->GetName() == "Arrow") ||
             (labelLayer && labelLayer->GetName() == "Label") ||
-            (regionLayer && regionLayer->GetName() == "Region"))
+            (regionLayer && regionLayer->GetName() == "Region") ||
+            (calloutLayer && calloutLayer->GetName() == "Callout"))
         {
             m_MathPlot->DelLayer(layer, true);
         }
@@ -709,6 +723,11 @@ bool ImageLabelGuiFrame::TryDeleteLastTouchedAnnotation(void)
     {
         typeName = "region";
         text = regionLayer->GetText();
+    }
+    else if(mpRegionCallout* calloutLayer = dynamic_cast<mpRegionCallout*>(m_pLastTouchedLayer))
+    {
+        typeName = "callout";
+        text = calloutLayer->GetText();
     }
     else
     {
@@ -799,6 +818,44 @@ void ImageLabelGuiFrame::OnButtonGenerateLatexCodeClick(wxCommandEvent& event)
                                            EscapeLatex(regionLayer->GetText()),
                                            regionLayer->GetLeft(), regionLayer->GetBottom(),
                                            regionLayer->GetRight(), regionLayer->GetTop());
+        }
+        else if (mpRegionCallout* calloutLayer = dynamic_cast<mpRegionCallout*>(layer))
+        {
+            // A callout is a text outside of the image with a leader line which points
+            // at a rectangle inside of the image. It uses the user defined
+            // "region callout" key of the tikz-imagelabels package
+            const wxRealPoint anchor = calloutLayer->GetAnchor();
+
+            // The border is chosen by the anchor, exactly like it is done for the arrows
+            wxString border;
+            double position = 0.0;
+
+            if(anchor.x < 0.0 && anchor.y > 0.0 && anchor.y < 1.0)
+            {
+                border = "left";
+                position = anchor.y;
+            }
+            else if(anchor.x > 1.0 && anchor.y > 0.0 && anchor.y < 1.0)
+            {
+                border = "right";
+                position = anchor.y;
+            }
+            else if(anchor.y < 0.0 && anchor.x > 0.0 && anchor.x < 1.0)
+            {
+                border = "below";
+                position = anchor.x;
+            }
+            else
+            {
+                border = "above";
+                position = anchor.x;
+            }
+
+            textStream << wxString::Format("    \\draw[region callout %s={%s at %.2f to (%.2f,%.2f) to (%.2f,%.2f)}];\n",
+                                           border,
+                                           EscapeLatex(calloutLayer->GetText()), position,
+                                           calloutLayer->GetLeft(), calloutLayer->GetBottom(),
+                                           calloutLayer->GetRight(), calloutLayer->GetTop());
         }
     }
 
@@ -944,6 +1001,88 @@ static bool ParseLatexLine(const wxString& line, mpWindow* plotWindow)
         return true;
     }
 
+    // Region callout: \draw[region callout <border>={text at POS to (X1,Y1) to (X2,Y2)}];
+    if(content.StartsWith("region callout"))
+    {
+        // The border follows the key name, spaces are optional
+        wxString border;
+        if(content.StartsWith("region callout left"))
+            border = "left";
+        else if(content.StartsWith("region callout right"))
+            border = "right";
+        else if(content.StartsWith("region callout below"))
+            border = "below";
+        else if(content.StartsWith("region callout above"))
+            border = "above";
+        else
+            return false;
+
+        // Everything between the "=" and the closing "}" is the argument
+        wxString arg = ExtractBetween(content, "=", "}");
+        arg.Trim(true).Trim(false);
+        if(arg.StartsWith("{"))
+            arg = arg.Mid(1);
+        arg.Trim(true).Trim(false);
+        if(arg.IsEmpty())
+            return false;
+
+        // arg format: "text at POS to (X1,Y1) to (X2,Y2)"
+        const int atPos = arg.Find(" at ");
+        if(atPos == wxNOT_FOUND)
+            return false;
+
+        wxString text = arg.Mid(0, atPos);
+        text.Trim(true).Trim(false);
+
+        wxString rest = arg.Mid(atPos + 4);
+        rest.Trim(true).Trim(false);
+
+        // Split the position of the text from the two corners of the rectangle
+        const int firstToPos = rest.Find(" to ");
+        if(firstToPos == wxNOT_FOUND)
+            return false;
+
+        double position = 0.0;
+        {
+            wxString positionStr = rest.Mid(0, firstToPos);
+            positionStr.Trim(true).Trim(false);
+            if(!positionStr.ToDouble(&position))
+                return false;
+        }
+
+        wxString corners = rest.Mid(firstToPos + 4);
+        corners.Trim(true).Trim(false);
+
+        const int secondToPos = corners.Find(" to ");
+        if(secondToPos == wxNOT_FOUND)
+            return false;
+
+        double firstX = 0.0, firstY = 0.0;
+        double secondX = 0.0, secondY = 0.0;
+        if(!ParseCoordinatePair(corners.Mid(0, secondToPos), firstX, firstY))
+            return false;
+        if(!ParseCoordinatePair(corners.Mid(secondToPos + 4), secondX, secondY))
+            return false;
+
+        // The text sits outside of the image, on the border which was given
+        wxRealPoint anchor;
+        if(border == "left")
+            anchor = wxRealPoint(-CALLOUT_OUTSIDE_OFFSET, position);
+        else if(border == "right")
+            anchor = wxRealPoint(1.0 + CALLOUT_OUTSIDE_OFFSET, position);
+        else if(border == "below")
+            anchor = wxRealPoint(position, -CALLOUT_OUTSIDE_OFFSET);
+        else // above
+            anchor = wxRealPoint(position, 1.0 + CALLOUT_OUTSIDE_OFFSET);
+
+        mpRegionCallout* callout = new mpRegionCallout(anchor,
+                                                       ClampToImage(firstX, firstY),
+                                                       ClampToImage(secondX, secondY),
+                                                       UnescapeLatex(text));
+        plotWindow->AddLayer(callout, true);
+        return true;
+    }
+
     // Annotation arrows: annotation <direction> = {label at pos}
     wxString direction;
     if(content.StartsWith("annotation left"))
@@ -1061,9 +1200,11 @@ void ImageLabelGuiFrame::OnButtonImportLatexCodeClick(wxCommandEvent& event)
         mpArrow* arrowLayer = dynamic_cast<mpArrow*>(layer);
         mpLabel* labelLayer = dynamic_cast<mpLabel*>(layer);
         mpRegion* regionLayer = dynamic_cast<mpRegion*>(layer);
+        mpRegionCallout* calloutLayer = dynamic_cast<mpRegionCallout*>(layer);
         if((arrowLayer && arrowLayer->GetName() == "Arrow") ||
            (labelLayer && labelLayer->GetName() == "Label") ||
-           (regionLayer && regionLayer->GetName() == "Region"))
+           (regionLayer && regionLayer->GetName() == "Region") ||
+           (calloutLayer && calloutLayer->GetName() == "Callout"))
         {
             m_MathPlot->DelLayer(layer, true);
         }
@@ -1146,6 +1287,7 @@ void ImageLabelGuiFrame::OnCheckBoxDrawLabelClick(wxCommandEvent& event)
         // mpWindow has a single user mouse action callback, so only one drawing mode can be active
         m_CheckBoxDrawArrow->SetValue(false);
         m_CheckBoxDrawRegion->SetValue(false);
+        m_CheckBoxDrawCallout->SetValue(false);
 
         m_MathPlot->SetOnUserMouseAction([this](void* Sender, wxMouseEvent & event, bool & cancel)
         {
@@ -1613,6 +1755,7 @@ void ImageLabelGuiFrame::OnCheckBoxDrawRegionClick(wxCommandEvent& event)
         // mpWindow has a single user mouse action callback, so only one drawing mode can be active
         m_CheckBoxDrawArrow->SetValue(false);
         m_CheckBoxDrawLabel->SetValue(false);
+        m_CheckBoxDrawCallout->SetValue(false);
 
         m_MathPlot->SetOnUserMouseAction([this](void* Sender, wxMouseEvent & event, bool & cancel)
         {
@@ -1621,4 +1764,370 @@ void ImageLabelGuiFrame::OnCheckBoxDrawRegionClick(wxCommandEvent& event)
     }
     else
         m_MathPlot->UnSetOnUserMouseAction();
+}
+
+void ImageLabelGuiFrame::OnCheckBoxDrawCalloutClick(wxCommandEvent& event)
+{
+    if(m_CheckBoxDrawCallout->GetValue())
+    {
+        // mpWindow has a single user mouse action callback, so only one drawing mode can be active
+        m_CheckBoxDrawArrow->SetValue(false);
+        m_CheckBoxDrawLabel->SetValue(false);
+        m_CheckBoxDrawRegion->SetValue(false);
+
+        m_MathPlot->SetOnUserMouseAction([this](void* Sender, wxMouseEvent & event, bool & cancel)
+        {
+            OnUserMouseActionDrawCallout(Sender, event, cancel);
+        });
+    }
+    else
+        m_MathPlot->UnSetOnUserMouseAction();
+}
+
+void ImageLabelGuiFrame::OnUserMouseActionDrawCallout(void* Sender, wxMouseEvent& event, bool& cancel)
+{
+    static wxOverlay overlay;
+    static wxPoint startPointScreen;   // Screen position where the left button was pressed
+    static wxPoint currentPointScreen; // Current screen position while dragging
+    static bool isDrawingCallout = false;
+    static bool isModifyingCallout = false;
+    static bool isMovingRectangle = false;
+    static bool isMovingAnchor = false;
+    static bool isResizing = false;
+    static int resizingCorner = -1; // 0 = bottom left, 1 = bottom right, 2 = top left, 3 = top right
+    static double grabGraphX = 0.0, grabGraphY = 0.0; // Graph coordinates where the right button was pressed
+    static double originalLeft = 0.0, originalRight = 0.0, originalBottom = 0.0, originalTop = 0.0;
+    static double originalAnchorX = 0.0, originalAnchorY = 0.0;
+    static mpRegionCallout* selectedCallout = nullptr;
+
+    const wxPoint mousePosition = event.GetPosition();
+    mpWindow* plotWindow = (mpWindow*)Sender; // Cast Sender to mpWindow
+
+    cancel = true;
+
+    // Left mouse button down: start drawing the rectangle of a new callout
+    if(event.LeftDown() && !isModifyingCallout)
+    {
+        isDrawingCallout = true;
+        startPointScreen = mousePosition;
+    }
+    // Right mouse button down: start modifying an existing callout
+    else if(event.RightDown())
+    {
+        // Attempt to find the closest callout layer to the mouse position
+        selectedCallout = FindClosestCalloutLayer(plotWindow, mousePosition);
+
+        if(selectedCallout)
+        {
+            originalLeft = selectedCallout->GetLeft();
+            originalRight = selectedCallout->GetRight();
+            originalBottom = selectedCallout->GetBottom();
+            originalTop = selectedCallout->GetTop();
+
+            const wxRealPoint anchor = selectedCallout->GetAnchor();
+            originalAnchorX = anchor.x;
+            originalAnchorY = anchor.y;
+
+            grabGraphX = plotWindow->p2x(mousePosition.x);
+            grabGraphY = plotWindow->p2y(mousePosition.y);
+
+            // The text is moved when the mouse is on it
+            if(selectedCallout->GetTextScreenRect(*plotWindow).Contains(mousePosition))
+            {
+                isMovingAnchor = true;
+                isModifyingCallout = true;
+            }
+            else
+            {
+                // Screen positions of the four corners of the rectangle
+                const wxPoint corners[4] =
+                {
+                    wxPoint(plotWindow->x2p(originalLeft),  plotWindow->y2p(originalBottom)), // 0 bottom left
+                    wxPoint(plotWindow->x2p(originalRight), plotWindow->y2p(originalBottom)), // 1 bottom right
+                    wxPoint(plotWindow->x2p(originalLeft),  plotWindow->y2p(originalTop)),    // 2 top left
+                    wxPoint(plotWindow->x2p(originalRight), plotWindow->y2p(originalTop))     // 3 top right
+                };
+
+                // Determine if the mouse is near one of the corners
+                resizingCorner = -1;
+                double minDistance = 10.0;
+                for(int i = 0; i < 4; i++)
+                {
+                    const double distance = DistanceBetweenPoints(mousePosition, corners[i]);
+                    if(distance < minDistance)
+                    {
+                        minDistance = distance;
+                        resizingCorner = i;
+                    }
+                }
+
+                if(resizingCorner >= 0)
+                {
+                    isResizing = true;
+                    isModifyingCallout = true;
+                }
+                else
+                {
+                    // Otherwise the whole rectangle is moved when the mouse is inside it
+                    wxRect rectangleScreenRect(corners[2], corners[1]);
+                    rectangleScreenRect.Inflate(5);
+                    if(rectangleScreenRect.Contains(mousePosition))
+                    {
+                        isMovingRectangle = true;
+                        isModifyingCallout = true;
+                    }
+                    else
+                    {
+                        selectedCallout = nullptr;
+                    }
+                }
+            }
+        }
+    }
+    // Left mouse button released: finalize a new callout
+    else if(event.LeftUp() && isDrawingCallout)
+    {
+        isDrawingCallout = false;
+        overlay.Reset();
+
+        currentPointScreen = mousePosition;
+
+        const double startX = plotWindow->p2x(startPointScreen.x);
+        const double startY = plotWindow->p2y(startPointScreen.y);
+        const double endX = plotWindow->p2x(currentPointScreen.x);
+        const double endY = plotWindow->p2y(currentPointScreen.y);
+
+        const double minimumSizeThreshold = 0.02;
+
+        if(std::abs(endX - startX) < minimumSizeThreshold || std::abs(endY - startY) < minimumSizeThreshold)
+        {
+            // If the rectangle is too small, skip creating the callout
+            wxMessageBox(
+                "The rectangle is too small to be created. Please try again.",
+                "Rectangle Too Small",
+                wxOK | wxICON_WARNING,
+                this
+            );
+            return;
+        }
+
+        const wxRealPoint firstCorner = ClampToImage(startX, startY);
+        const wxRealPoint secondCorner = ClampToImage(endX, endY);
+
+        // Open a text entry dialog to get the text of the callout
+        wxTextEntryDialog textDialog(
+            this,
+            "Enter the text of the callout:",
+            "Callout Text",
+            "Callout"
+        );
+
+        wxString text = "Callout"; // Default text
+        if(textDialog.ShowModal() == wxID_OK)
+        {
+            text = textDialog.GetValue(); // Get the user-entered text
+        }
+
+        // The text is put on the border which is closest to the centre of the rectangle
+        const double left = wxMin(firstCorner.x, secondCorner.x);
+        const double right = wxMax(firstCorner.x, secondCorner.x);
+        const double bottom = wxMin(firstCorner.y, secondCorner.y);
+        const double top = wxMax(firstCorner.y, secondCorner.y);
+        const double centreX = (left + right) / 2;
+        const double centreY = (bottom + top) / 2;
+
+        const double distanceToLeft = centreX;
+        const double distanceToRight = 1.0 - centreX;
+        const double distanceToBottom = centreY;
+        const double distanceToTop = 1.0 - centreY;
+
+        wxRealPoint anchor;
+        if(distanceToLeft <= distanceToRight && distanceToLeft <= distanceToBottom && distanceToLeft <= distanceToTop)
+            anchor = wxRealPoint(-CALLOUT_OUTSIDE_OFFSET, centreY);
+        else if(distanceToRight <= distanceToBottom && distanceToRight <= distanceToTop)
+            anchor = wxRealPoint(1.0 + CALLOUT_OUTSIDE_OFFSET, centreY);
+        else if(distanceToBottom <= distanceToTop)
+            anchor = wxRealPoint(centreX, -CALLOUT_OUTSIDE_OFFSET);
+        else
+            anchor = wxRealPoint(centreX, 1.0 + CALLOUT_OUTSIDE_OFFSET);
+
+        // Create and add a permanent callout layer
+        mpRegionCallout* callout = new mpRegionCallout(anchor, firstCorner, secondCorner, text);
+        plotWindow->AddLayer(callout, true);
+        plotWindow->Refresh();
+    }
+    // Mouse dragging with the left button: draw the rectangle of a new callout
+    else if(event.Dragging() && event.LeftIsDown() && isDrawingCallout)
+    {
+        currentPointScreen = mousePosition;
+
+        // Draw the rectangle dynamically on the overlay
+        wxClientDC dc(plotWindow);
+        PrepareDC(dc);
+        wxDCOverlay dcOverlay(overlay, &dc);
+        dcOverlay.Clear();
+
+        dc.SetPen(wxPen(*wxBLACK, 2));
+        dc.SetBrush(*wxTRANSPARENT_BRUSH);
+
+        // Normalize the rectangle, the user may drag in any direction
+        const wxCoord rectLeft = wxMin(startPointScreen.x, currentPointScreen.x);
+        const wxCoord rectTop = wxMin(startPointScreen.y, currentPointScreen.y);
+        const wxCoord rectRight = wxMax(startPointScreen.x, currentPointScreen.x);
+        const wxCoord rectBottom = wxMax(startPointScreen.y, currentPointScreen.y);
+
+        dc.DrawRectangle(rectLeft, rectTop, rectRight - rectLeft, rectBottom - rectTop);
+    }
+    // Mouse dragging with the right button: move the text, move or resize the rectangle
+    else if(event.Dragging() && event.RightIsDown() && isModifyingCallout && selectedCallout)
+    {
+        if(isMovingAnchor)
+        {
+            // The anchor follows the mouse, it may leave the image on any border
+            const double deltaX = plotWindow->p2x(mousePosition.x) - grabGraphX;
+            const double deltaY = plotWindow->p2y(mousePosition.y) - grabGraphY;
+
+            selectedCallout->SetAnchor(wxRealPoint(originalAnchorX + deltaX,
+                                                   originalAnchorY + deltaY));
+        }
+        else
+        {
+            double left = originalLeft;
+            double right = originalRight;
+            double bottom = originalBottom;
+            double top = originalTop;
+
+            if(isResizing)
+            {
+                // The dragged corner follows the mouse, the opposite corner stays fixed
+                const wxRealPoint corner = ClampToImage(plotWindow->p2x(mousePosition.x),
+                                                        plotWindow->p2y(mousePosition.y));
+
+                switch(resizingCorner)
+                {
+                    case 0: left = corner.x;  bottom = corner.y; break; // bottom left
+                    case 1: right = corner.x; bottom = corner.y; break; // bottom right
+                    case 2: left = corner.x;  top = corner.y;    break; // top left
+                    default: right = corner.x; top = corner.y;   break; // top right
+                }
+            }
+            else if(isMovingRectangle)
+            {
+                // Move the whole rectangle, but keep it inside the image
+                const double deltaX = plotWindow->p2x(mousePosition.x) - grabGraphX;
+                const double deltaY = plotWindow->p2y(mousePosition.y) - grabGraphY;
+
+                left = originalLeft + deltaX;
+                right = originalRight + deltaX;
+                bottom = originalBottom + deltaY;
+                top = originalTop + deltaY;
+
+                if(left < 0.0)
+                {
+                    right -= left;
+                    left = 0.0;
+                }
+                if(right > 1.0)
+                {
+                    left -= right - 1.0;
+                    right = 1.0;
+                }
+                if(bottom < 0.0)
+                {
+                    top -= bottom;
+                    bottom = 0.0;
+                }
+                if(top > 1.0)
+                {
+                    bottom -= top - 1.0;
+                    top = 1.0;
+                }
+            }
+
+            // The corners are normalized here, so dragging a corner across the opposite one just flips the rectangle
+            selectedCallout->SetFirstCorner(wxRealPoint(wxMin(left, right), wxMin(bottom, top)));
+            selectedCallout->SetSecondCorner(wxRealPoint(wxMax(left, right), wxMax(bottom, top)));
+        }
+
+        plotWindow->Refresh();
+    }
+    // Right mouse button released: keep the new position of the callout
+    else if(event.RightUp() && isModifyingCallout)
+    {
+        isModifyingCallout = false;
+        isMovingRectangle = false;
+        isMovingAnchor = false;
+        isResizing = false;
+        resizingCorner = -1;
+
+        if(selectedCallout)
+        {
+            plotWindow->Refresh();
+
+            // Remember the callout, it can be removed again with the Del key
+            m_pLastTouchedLayer = selectedCallout;
+
+            selectedCallout = nullptr;
+        }
+    }
+    // Right mouse double-click: edit the text of the selected callout
+    else if(event.RightDClick())
+    {
+        selectedCallout = FindClosestCalloutLayer(plotWindow, mousePosition);
+
+        if(selectedCallout)
+        {
+            wxTextEntryDialog textDialog(plotWindow,
+                                         "Edit the text of the callout:",
+                                         "Callout Text Editor",
+                                         selectedCallout->GetText());
+
+            if(textDialog.ShowModal() == wxID_OK)
+            {
+                selectedCallout->SetText(textDialog.GetValue());
+                plotWindow->Refresh();
+            }
+
+            // Remember the callout, it can be removed again with the Del key
+            m_pLastTouchedLayer = selectedCallout;
+        }
+
+        selectedCallout = nullptr;
+    }
+}
+
+mpRegionCallout* ImageLabelGuiFrame::FindClosestCalloutLayer(mpWindow* plotWindow, const wxPoint& mouseScreenPosition)
+{
+    mpRegionCallout* closestCallout = nullptr;
+    double minDistance = std::numeric_limits<double>::max();
+
+    // Iterate over all layers to find the closest callout
+    for(unsigned int i = 0; i < plotWindow->CountAllLayers(); i++)
+    {
+        auto layer = plotWindow->GetLayer(i);
+        mpRegionCallout* calloutLayer = dynamic_cast<mpRegionCallout*>(layer);
+        if(calloutLayer && calloutLayer->GetName() == "Callout")
+        {
+            const wxPoint topLeft(plotWindow->x2p(calloutLayer->GetLeft()),
+                                  plotWindow->y2p(calloutLayer->GetTop()));
+            const wxPoint bottomRight(plotWindow->x2p(calloutLayer->GetRight()),
+                                      plotWindow->y2p(calloutLayer->GetBottom()));
+
+            // The distance to the rectangle ...
+            double distance = DistanceToRectangle(mouseScreenPosition, wxRect(topLeft, bottomRight));
+
+            // ... and to the text at the anchor
+            if(calloutLayer->GetTextScreenRect(*plotWindow).Contains(mouseScreenPosition))
+                distance = 0.0;
+
+            if(distance < minDistance)
+            {
+                minDistance = distance;
+                closestCallout = calloutLayer;
+            }
+        }
+    }
+
+    // Return the closest callout layer if it is close enough to the mouse
+    return (minDistance < 10.0) ? closestCallout : nullptr;
 }

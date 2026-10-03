@@ -17,6 +17,7 @@
 class mpArrow;
 class mpLabel;
 class mpRegion;
+class mpRegionCallout;
 
 class ImageLabelGuiFrame: public wxFrame
 {
@@ -39,6 +40,7 @@ private:
     void OnCheckBoxDrawLabelClick(wxCommandEvent& event);
     void OnButtonImportLatexCodeClick(wxCommandEvent& event);
     void OnCheckBoxDrawRegionClick(wxCommandEvent& event);
+    void OnCheckBoxDrawCalloutClick(wxCommandEvent& event);
     //*)
 
     //(*Identifiers(ImageLabelGuiFrame)
@@ -61,6 +63,7 @@ private:
     wxButton* m_ButtonGenerateLatexCode;
     wxButton* m_ButtonLoadImage;
     wxCheckBox* m_CheckBoxDrawArrow;
+    wxCheckBox* m_CheckBoxDrawCallout;
     wxCheckBox* m_CheckBoxDrawLabel;
     wxCheckBox* m_CheckBoxDrawRegion;
     wxPanel* Panel1;
@@ -87,6 +90,8 @@ private:
     void AddLabelAtScreenPosition(mpWindow* plotWindow, const wxPoint& mouseScreenPosition);
     void OnUserMouseActionDrawRegion(void* Sender, wxMouseEvent& event, bool& cancel);
     mpRegion* FindClosestRegionLayer(mpWindow* plotWindow, const wxPoint& mouseScreenPosition);
+    void OnUserMouseActionDrawCallout(void* Sender, wxMouseEvent& event, bool& cancel);
+    mpRegionCallout* FindClosestCalloutLayer(mpWindow* plotWindow, const wxPoint& mouseScreenPosition);
 
     // The annotation which the user has touched last. It is removed when the
     // Del key is pressed, a confirmation dialog is shown before that.
