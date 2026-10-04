@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # 1. Initialize the MSYS2 UCRT64 environment and install required dependencies
       - name: Setup MSYS2 environment (UCRT64)
