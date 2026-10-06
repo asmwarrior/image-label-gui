@@ -30,6 +30,7 @@ jobs:
             curl
             unzip
             zip
+            jq
             make
             dos2unix
             mingw-w64-ucrt-x86_64-gcc
