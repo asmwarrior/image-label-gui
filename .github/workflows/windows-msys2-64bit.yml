@@ -37,11 +37,27 @@ jobs:
             mingw-w64-ucrt-x86_64-codeblocks
             mingw-w64-ucrt-x86_64-wxwidgets3.3-msw
 
-      # 2. Install the pedeps tool
-      - name: Install pedeps
+      # 2. Install the pedeps tool 
+      - name: Download and install pedeps
+        shell: msys2 {0}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LATEST_VERSION=$(curl -s https://api.github.com/repos/brechtsanders/pedeps/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          # Fetch the tag name from the first entry in the releases array
+          LATEST_VERSION=$(curl -s -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/brechtsanders/pedeps/releases | jq -r '.[0].tag_name')
+
+          # Fallback check to prevent silent failures
+          if [ -z "$LATEST_VERSION" ] || [ "$LATEST_VERSION" = "null" ]; then
+            echo "Error: Could not retrieve version tag from GitHub API"
+            exit 1
+          fi
+
+          echo "Downloading pedeps version: $LATEST_VERSION"
+
+          # Download binary asset
           curl -sL "https://github.com/brechtsanders/pedeps/releases/download/${LATEST_VERSION}/pedeps-${LATEST_VERSION}-win64.zip" -o pedeps.zip
+
+          # Extract and install
           unzip -q pedeps.zip -d /tmp/pedeps
           cp /tmp/pedeps/bin/* /ucrt64/bin/
           rm -rf pedeps.zip /tmp/pedeps
@@ -109,9 +125,7 @@ jobs:
           echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
 
           # Package the contents of the dist directory
-          cd dist
-          zip -r "../${ZIP_NAME}" .
-          cd ..
+          (cd dist && zip -r "../${ZIP_NAME}" .)
 
           echo "=================== ZIP PACKAGE ==================="
           ls -lh "${ZIP_NAME}"
@@ -121,7 +135,7 @@ jobs:
       - name: Create GitHub Release
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $timestamp = [DateTime]::UtcNow.AddHours(8).ToString("yyyy-MM-dd HH:mm:ss")
           $tagTimestamp = [DateTime]::UtcNow.AddHours(8).ToString("yyyy-MM-ddTHH-mm-ss")
@@ -136,4 +150,4 @@ jobs:
           gh release create $tagName `
             $env:ZIP_NAME `
             --title $releaseTitle `
-            --notes "Manual build from commit $env:GITHUB_SHA"
+            --notes "Manual build from commit ${{ github.sha }}"
